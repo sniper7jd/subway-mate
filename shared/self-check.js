@@ -1,6 +1,18 @@
 import station from "./times-square.json" with { type: "json" };
 import { buildVisionCueCatalog, sanitizeVisionCueMatch } from "./vision.js";
 import {
+  createConversationState,
+  processImageText,
+  processTextMessage,
+} from "../server/imessage-guide.js";
+import sharp from "sharp";
+import {
+  isSupportedImageAttachment,
+  normalizeImageForOcr,
+  scanIMessageAttachment,
+} from "../server/imessage-images.js";
+import { createMessageDeduplicator } from "../server/message-dedupe.js";
+import {
   applyRoute,
   arrivalSentence,
   blankWallSentence,
@@ -31,6 +43,163 @@ import {
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+assert(
+  !isSupportedImageAttachment({ mimeType: "image/heic" })
+    && !isSupportedImageAttachment({ mimeType: "application/octet-stream", name: "IMG_1234.HEIC" })
+    && isSupportedImageAttachment({ mimeType: "image/jpeg" })
+    && isSupportedImageAttachment({ mimeType: "application/octet-stream", name: "IMG_1234.PNG" })
+    && !isSupportedImageAttachment({ mimeType: "application/pdf", name: "station.pdf" }),
+  "iMessage accepts JPEG, PNG, and WebP photos and rejects unsupported HEIC attachments",
+);
+const largeTestImage = await sharp({
+  create: { width: 1800, height: 900, channels: 3, background: "#ffffff" },
+}).jpeg().toBuffer();
+const normalizedTestImage = await normalizeImageForOcr(largeTestImage);
+const normalizedTestMetadata = await sharp(normalizedTestImage).metadata();
+assert(
+  normalizedTestMetadata.width === 1280 && normalizedTestMetadata.height === 640,
+  "iMessage photo normalization scales large images to the bounded OCR size",
+);
+let rejectedInvalidImage = false;
+try {
+  await normalizeImageForOcr(Buffer.from("not an image"));
+} catch {
+  rejectedInvalidImage = true;
+}
+assert(rejectedInvalidImage, "invalid image bytes are rejected during normalization");
+
+const isDuplicateIMessage = createMessageDeduplicator({ maxEntries: 2 });
+assert(!isDuplicateIMessage("imessage-1"), "first Spectrum delivery is processed");
+assert(isDuplicateIMessage("imessage-1"), "at-least-once redelivery of the same message is suppressed");
+assert(!isDuplicateIMessage("imessage-2"), "a distinct Spectrum message remains processable");
+assert(!isDuplicateIMessage("imessage-3"), "deduplication stays bounded as new messages arrive");
+
+const imessageStart = processTextMessage(createConversationState(), "Bronx");
+assert(imessageStart.state.route?.tripId === "uptown-123", "iMessage bot starts a graph-backed Bronx route");
+const unsupportedIMessagePhoto = await scanIMessageAttachment(imessageStart.state, {
+  mimeType: "image/heic",
+  name: "IMG_1234.HEIC",
+  read: () => {
+    throw new Error("unsupported HEIC attachment must be rejected before reading bytes");
+  },
+});
+assert(
+  unsupportedIMessagePhoto.state === imessageStart.state
+    && /send a JPEG, PNG, or WebP/i.test(unsupportedIMessagePhoto.reply),
+  "HEIC attachments are explicitly rejected without altering the active route",
+);
+const oversizedIMessagePhoto = await scanIMessageAttachment(imessageStart.state, {
+  mimeType: "image/jpeg",
+  size: 13 * 1024 * 1024,
+  read: () => {
+    throw new Error("oversized attachment must be rejected before reading bytes");
+  },
+});
+assert(
+  oversizedIMessagePhoto.state === imessageStart.state
+    && /over 12 MB/i.test(oversizedIMessagePhoto.reply),
+  "oversized iMessage photos are rejected without reading or changing route state",
+);
+const lostDuringBronxRoute = processTextMessage(imessageStart.state, "I'm lost");
+assert(
+  !lostDuringBronxRoute.state.route
+    && lostDuringBronxRoute.state.pendingTripId === "uptown-123"
+    && /nearest landmark or sign/i.test(lostDuringBronxRoute.reply)
+    && /green globe/i.test(lostDuringBronxRoute.reply),
+  "a lost-rider prompt asks for a usable landmark and retains the Bronx destination",
+);
+const wrongDirectionReport = processTextMessage(
+  lostDuringBronxRoute.state,
+  "I'm at the Downtown 1/2/3 sign",
+);
+assert(
+  wrongDirectionReport.state.route?.tripId === "uptown-123"
+    && wrongDirectionReport.state.route.startNodeId === "downtown-123"
+    && /wrong direction for the Bronx/i.test(wrongDirectionReport.reply)
+    && /First,/i.test(wrongDirectionReport.reply),
+  "a downtown sign after getting lost identifies the wrong direction and resumes graph routing to the Bronx",
+);
+const ambiguousLostLandmark = processTextMessage(
+  lostDuringBronxRoute.state,
+  "I see a purple 7 bullet",
+);
+const clarifiedLostLandmark = processTextMessage(ambiguousLostLandmark.state, "stairs");
+assert(
+  ambiguousLostLandmark.state.pendingTripId === "uptown-123"
+    && ambiguousLostLandmark.state.pendingLocationCandidates.length === 2
+    && clarifiedLostLandmark.state.route?.tripId === "uptown-123"
+    && clarifiedLostLandmark.state.route.startNodeId === "seven-stairs",
+  "an ambiguous lost-location landmark asks which mapped point and keeps the Bronx destination through clarification",
+);
+const atBronxPlatform = processTextMessage(
+  imessageStart.state,
+  "I'm at the green globe",
+);
+assert(
+  atBronxPlatform.state.arrived
+    && /Uptown 1\/2\/3 side for the Bronx/i.test(atBronxPlatform.reply),
+  "a mapped Uptown 1/2/3 landmark confirms the correct Bronx direction",
+);
+assert(
+  imessageStart.state.startNodeId === "ent-42-7" && imessageStart.state.cursor === 0,
+  "iMessage route uses the default 42nd Street and Seventh Avenue start",
+);
+const imessageOkay = processTextMessage(imessageStart.state, "okay");
+assert(imessageOkay.state.cursor === 0, "iMessage 'okay' alone does not advance the route");
+const imessageAdvance = processTextMessage(imessageStart.state, "okay, I'm there");
+assert(imessageAdvance.state.cursor === 1, "iMessage explicit arrival advances exactly one graph step");
+const imessageImage = processImageText(imessageStart.state, "UPTOWN BRONX 1 2 3");
+assert(
+  imessageImage.state.route === imessageStart.state.route
+    && imessageImage.state.cursor === 0
+    && imessageImage.state.pendingImageNodeIds.includes("uptown-123"),
+  "an iMessage photo proposes a mapped candidate without relocating or advancing",
+);
+const imessageImageConfirm = processTextMessage(imessageImage.state, "CONFIRM LOCATION");
+assert(
+  imessageImageConfirm.state.route?.startNodeId === "uptown-123"
+    && imessageImageConfirm.state.arrived,
+  "an explicit iMessage photo confirmation replans from the confirmed candidate",
+);
+const imessageAmbiguousPhoto = processImageText(imessageStart.state, "IRT Flushing Line");
+assert(
+  imessageAmbiguousPhoto.state.pendingImageNodeIds.length > 1,
+  "iMessage photo cues shared by stairs and platform require disambiguation",
+);
+const imessageWrongLinePhoto = processImageText(imessageStart.state, "Downtown Brooklyn N R");
+assert(
+  imessageWrongLinePhoto.state.route === imessageStart.state.route
+    && imessageWrongLinePhoto.state.pendingImageNodeIds.length === 0,
+  "an iMessage photo with the wrong line markers cannot relocate the rider",
+);
+const imessagePrematureEnd = processTextMessage(imessageStart.state, "end");
+assert(
+  Boolean(imessagePrematureEnd.state.route) && /haven't confirmed reaching/i.test(imessagePrematureEnd.reply),
+  "iMessage END does not close an unfinished route",
+);
+const imessageEnd = processTextMessage(
+  { ...imessageStart.state, arrived: true },
+  "end",
+);
+assert(
+  imessageEnd.reply === "Okay, have a great rest of your day."
+    && imessageEnd.state.route === null,
+  "iMessage END after arrival sends the requested farewell and clears the trip",
+);
+const imessageThanks = processTextMessage(
+  { ...imessageStart.state, arrived: true },
+  "Thank you!",
+);
+assert(
+  imessageThanks.reply === imessageEnd.reply && imessageThanks.state.route === null,
+  "an iMessage thank-you after arrival behaves exactly like END",
+);
+const imessageThanksEarly = processTextMessage(imessageStart.state, "Thanks");
+assert(
+  Boolean(imessageThanksEarly.state.route) && /haven't confirmed reaching/i.test(imessageThanksEarly.reply),
+  "a thank-you before arrival does not falsely close an unfinished route",
+);
 
 const visionCatalog = buildVisionCueCatalog(station);
 assert(visionCatalog.length === station.nodes.length, "online vision cue catalog contains only station graph nodes");
@@ -321,12 +490,13 @@ assert(matchObservation("where is the green globe?").node === null, "a question 
 assert(matchObservation("I see an elevator").node === null, "a generic elevator description does not guess which elevator");
 assert(matchObservation("I'm at the elevator doors").node === null, "a generic elevator description does not match the out-of-service 7 elevator");
 assert(
-  /line number or letter and direction/i.test(replyFor("I'm lost; the sign looks different", null, 0, false).line),
+  /nearest landmark or sign/i.test(replyFor("I'm lost; the sign looks different", null, 0, false).line)
+    && /train number or letter, and direction/i.test(replyFor("I'm lost; the sign looks different", null, 0, false).line),
   "an unknown location asks for actionable sign, street-corner, or elevator-code details",
 );
 assert(/turnstiles.*appear in more than one area/i.test(unrecognizedLocationLine("I'm lost; I see turnstiles")), "turnstiles get an explicit non-location clarification");
-assert(/exact name/i.test(unrecognizedLocationLine("I'm lost near a shop")), "unknown shops prompt for their name instead of being mistaken for known storefronts");
-assert(/line number or letter and direction/i.test(unrecognizedLocationLine("I'm lost; I see signage")), "generic signage prompts for line and direction text");
+assert(/McDonald's.*Baskin-Robbins/i.test(unrecognizedLocationLine("I'm lost near a shop")), "unknown shops prompt riders to use an exact mapped business name");
+assert(/train number or letter, and direction/i.test(unrecognizedLocationLine("I'm lost; I see signage")), "generic signage prompts for line and direction text");
 assert(/cross street or corner/i.test(unrecognizedLocationLine("I'm at 42nd Street")), "a partial street location asks for the cross street rather than guessing an entrance");
 assert(
   station.visualCueGuidance.recognized.some((cue) => /McDonald's/.test(cue))
@@ -341,7 +511,7 @@ assert(
   "official MTA entrance data is cited without treating street points as indoor pathways",
 );
 assert(
-  /line number or letter and direction/i.test(replyFor(
+  /nearest landmark or sign/i.test(replyFor(
     "I'm lost; the sign looks different",
     screenBronx,
     0,

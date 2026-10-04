@@ -20,6 +20,37 @@ The station file records Times Sq-42 St/Port Authority complex 611 and official 
 
 The current step, train, platform, and step-free status can be asked about in chat or by voice. A clear “okay, I'm there”/“I've completed that step” advances one edge; “okay” alone does not. The full itinerary is visible, while spoken guidance gives only the current next step and reminds the rider to check the line/direction sign before boarding. Browser speech recognition is attempted first. If unsupported, the voice button records only when server transcription is configured with `XAI_API_KEY`; the recording is sent only to the same-origin server for transcription. Without that key or a connection, the app explains the limitation and keeps text input available.
 
+## iMessage through Photon Spectrum
+
+The Express server also starts the optional Photon Spectrum cloud iMessage provider when `SPECTRUM_PROJECT_ID` and `SPECTRUM_PROJECT_SECRET` are set in the local `.env`. The app uses the existing project ID from the provided setup command; obtain the project secret through Photon authentication, never commit it or paste it into chat. After the credentials are set, restart `npm run dev`. If credentials are missing, the web app still runs and the server logs that iMessage is disabled. This integration uses Spectrum's **Stable** `spectrum-ts` SDK and managed cloud iMessage provider; recipients/authorized numbers and line setup are managed in Photon.
+
+The iMessage assistant shares the station graph and deterministic route logic with the website. Text destinations, mapped lost-location clues, step confirmations, route questions, and step-free route limits work in the chat. It gives one graph step at a time. After all route steps are confirmed, send `end`, `thanks`, or `thank you` for “Okay, have a great rest of your day.” Gratitude before arrival does not falsely end the route. It ignores non-message provider events and suppresses duplicate deliveries by Spectrum message ID; it does not send an unsolicited greeting on empty or unrecognized events. It does not emit typing indicators while filtering provider events.
+
+You can attach a JPEG, PNG, or WebP sign photo in iMessage. HEIC/HEIF attachments are not supported; for the demo, use the text-only landmark script below. Supported photos are normalized locally before bundled English OCR (large images are reduced to a 1280-pixel edge). The bot compares recognized text against the same station-file markers and cues as the website. It proposes a mapped location but does not relocate the rider or advance a step until they reply `CONFIRM LOCATION` (or specify a candidate after that phrase). Ambiguous, unsupported, undecodable, oversized, and non-image attachments are rejected with an explanation. Photo content passes through iMessage/Photon and the Subway Mate server, unlike the website's local-only OCR; don't send a photo unless you're comfortable with that processing.
+
+### Photon text demo script
+
+Start a fresh iMessage conversation (or send `Hi`) and use only landmarks you are actually looking at:
+
+| You send | What to expect |
+| --- | --- |
+| `Hi` | The bot asks where you want to go from Times Square–42 St. |
+| `Bronx` | It gives the first graph-based direction from the default 42nd Street and Seventh Avenue entrance. |
+| `I'm here` | It advances exactly one step and gives the Uptown/Bronx 1/2/3 direction. |
+| `I'm lost` | It asks for the nearest landmark or sign, offers examples, and keeps the Bronx destination. |
+| `I'm at the Downtown 1/2/3 sign` | If that is what you see, it identifies this as the wrong direction for the Bronx and gives a mapped route from there. |
+| `I'm at the green globe` | If you are physically by the green globe, it recognizes the Uptown 1/2/3 side as the correct direction and reminds you to check the Bronx/Uptown sign. |
+
+You can also answer the lost prompt with `I see a purple 7 bullet`; the bot asks whether you are by the 7 stairs or at the platform because that clue alone is ambiguous. Reply `stairs` or `platform` based on where you are; it keeps the Bronx destination and gives a route from that mapped point. If you cannot identify a mapped landmark, send the exact sign words plus the train number/letter and direction. After each instruction, say `I'm here` only when you have reached that step. This is a text demo, not a reason to walk toward an unfamiliar area; follow station signs and ask staff if the described route doesn't match what you see.
+
+To connect the provided Photon project, run the requested command from any temporary folder and finish the browser device sign-in when prompted:
+
+```bash
+npm create spectrum-project@latest bigredhacks -- --projectId 99278541-bf6c-44ab-912a-d9888a3acea5 --providers imessage --yes
+```
+
+The scaffold writes `PROJECT_ID` and `PROJECT_SECRET` into its `.env`. Copy those values into the root `.env` as `SPECTRUM_PROJECT_ID` and `SPECTRUM_PROJECT_SECRET` (the project ID is already listed in `.env.example`); keep the secret local. Start the Subway Mate server and verify `/api/health` reports `"imessage":"connected"` or check for `Photon iMessage assistant is connected.` The bot's state is held in memory per conversation and resets when the server restarts. Use the text demo above to test destination selection, step confirmation, wrong-direction recovery, and the lost-landmark prompt. Photo testing accepts JPEG, PNG, or WebP only.
+
 To test photo wayfinding: enter a destination screen and wait until it says **On-device sign reader ready** (the first model load may take a while). Use **Try a sample sign** → **Uptown 1/2/3** to test a positive image without traveling; it should suggest the Uptown platform. Then use **Take a photo** and photograph that sample on another screen or a printout, filling the camera view with the sign and holding steady. The same route should be suggested after OCR finishes. Test **Downtown N/R (should not match)** and **Blank wall (no match)**; neither should suggest a platform. The recognized text is shown so you can see whether camera framing or glare caused the miss. A photo scan never changes the active step.
 
 To test online camera assistance, configure `XAI_API_KEY` in the server environment, start the app, begin any route, enable the camera preview, then tap **Analyze this frame online**. The browser submits one downscaled still—not a video stream—to the Subway Mate server and xAI. The response can suggest only station-file cue matches; it must not change the route or step. Check that a known cue offers a confirmation button, a shared clue such as **IRT Flushing Line** stays ambiguous, and an unmatched scene asks you for readable sign text. Confirm only when you are actually at the suggested place. Without the key or network, camera assistance is unavailable but local OCR and typed routing remain usable. Never send a frame you do not want to share.

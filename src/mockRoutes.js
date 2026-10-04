@@ -262,6 +262,12 @@ export function chooseObservationCandidate(candidates, text) {
 
 export function unrecognizedLocationLine(text = "", destination = "") {
   const destinationContext = destination ? `I can help you reach ${destination}, but I can't identify your location from that alone. ` : "";
+  if (/\b(?:lost|can't find|cannot find|don't see|do not see|not sure where|confused|stuck)\b/i.test(text)) {
+    const caution = /\b(turnstiles?|fare gates?|ticket machines?|metrocard machines?)\b/i.test(text)
+      ? "Turnstiles and ticket machines appear in more than one area, so don't use them alone. "
+      : "";
+    return `${destinationContext}Pause somewhere safe. ${caution}What's the nearest landmark or sign? You can say “the green globe,” “Uptown/Bronx 1 2 3,” “Downtown/Brooklyn 1 2 3,” “purple 7 bullet,” “McDonald's,” or “Baskin-Robbins.” If none match, tell me the exact words, train number or letter, and direction on the nearest sign. I'll use only mapped clues and guide you from there.`;
+  }
   if (/\b(turnstiles?|fare gates?|ticket machines?|metrocard machines?)\b/i.test(text)) {
     return `${destinationContext}Turnstiles and ticket machines appear in more than one area, so I can't use them alone to locate you. What does the nearest train sign say—include its line number or letter and Uptown/Downtown, Queens, or Brooklyn? A street corner, exit name, or specific shop name can help too.`;
   }

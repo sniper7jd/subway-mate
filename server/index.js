@@ -12,6 +12,7 @@ import {
   tripById,
 } from "../shared/guidance.js";
 import { buildVisionCueCatalog, sanitizeVisionCueMatch } from "../shared/vision.js";
+import { getIMessageStatus, startIMessage, stopIMessage } from "./imessage.js";
 
 const app = express();
 app.use(express.json({ limit: "8mb" }));
@@ -200,6 +201,7 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     grok: Boolean(process.env.XAI_API_KEY),
     vision: Boolean(process.env.XAI_API_KEY),
+    imessage: getIMessageStatus(),
     model: MODEL,
   });
 });
@@ -480,6 +482,19 @@ app.post("/api/vision-cue", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
   console.log(`Subway Mate API on http://localhost:${PORT}`);
+  startIMessage().catch((error) => {
+    console.error(`Could not start Photon iMessage: ${error.message || "unknown error"}`);
+  });
 });
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.once(signal, () => {
+    httpServer.close(() => {
+      stopIMessage().catch((error) => {
+        console.error(`Could not stop Photon iMessage cleanly: ${error.message || "unknown error"}`);
+      });
+    });
+  });
+}
