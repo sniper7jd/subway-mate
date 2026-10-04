@@ -11,7 +11,7 @@ import {
   normalizeImageForOcr,
   scanIMessageAttachment,
 } from "../server/imessage-images.js";
-import { createMessageDeduplicator } from "../server/message-dedupe.js";
+import { createMessageDeduplicator, createReplyEchoGuard } from "../server/message-dedupe.js";
 import {
   applyRoute,
   arrivalSentence,
@@ -74,6 +74,17 @@ assert(!isDuplicateIMessage("imessage-1"), "first Spectrum delivery is processed
 assert(isDuplicateIMessage("imessage-1"), "at-least-once redelivery of the same message is suppressed");
 assert(!isDuplicateIMessage("imessage-2"), "a distinct Spectrum message remains processable");
 assert(!isDuplicateIMessage("imessage-3"), "deduplication stays bounded as new messages arrive");
+const isRepeatedText = createMessageDeduplicator({ ttlMs: 4_000 });
+assert(!isRepeatedText("space\nHi"), "the first copy of an iMessage text is answered");
+assert(isRepeatedText("space\nHi"), "a second delivery of the same iMessage text is ignored");
+assert(!isRepeatedText("space\nI'm here"), "a different follow-up text is still answered");
+const replyEcho = createReplyEchoGuard();
+replyEcho.remember("space", "Hi. Where would you like to go?");
+assert(replyEcho.isEcho("space", "Hi. Where would you like to go?"), "the bot ignores an echo of its own reply");
+assert(!replyEcho.isEcho("space", "Bronx"), "a new rider message is not treated as an echo");
+const expiredEcho = createReplyEchoGuard({ ttlMs: -1 });
+expiredEcho.remember("space", "Same reply");
+assert(!expiredEcho.isEcho("space", "Same reply"), "an old reply echo can be treated as a new message");
 
 const imessageStart = processTextMessage(createConversationState(), "Bronx");
 assert(imessageStart.state.route?.tripId === "uptown-123", "iMessage bot starts a graph-backed Bronx route");

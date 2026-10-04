@@ -4,11 +4,28 @@ import { imessage } from "spectrum-ts/providers/imessage";
 import station from "../shared/times-square.json" with { type: "json" };
 import { scanIMessageAttachment, stopIMessageImageReader } from "./imessage-images.js";
 import { createConversationState, processTextMessage } from "./imessage-guide.js";
-import { createMessageDeduplicator } from "./message-dedupe.js";
+import { createMessageDeduplicator, createReplyEchoGuard } from "./message-dedupe.js";
 
 const MAX_CONVERSATIONS = 2_000;
 const conversations = new Map();
 const isDuplicateDelivery = createMessageDeduplicator();
+const isRepeatedText = createMessageDeduplicator({ ttlMs: 45_000 });
+const isRepeatedReply = createMessageDeduplicator({ ttlMs: 45_000 });
+const replyEcho = createReplyEchoGuard();
+const MARKETING_PITCH = /subway mate gets you to your train/i;
+
+function isMarketingPitch(text) {
+  return MARKETING_PITCH.test(text);
+}
+
+function personKey(message, spaceId) {
+  const sender = message.sender;
+  return sender?.id || sender?.address || spaceId;
+}
+
+function normalizeText(text) {
+  return text.replace(/\s+/g, " ").trim().toLowerCase();
+}
 let spectrum;
 let connectionStatus = "disabled";
 
@@ -42,11 +59,25 @@ async function handleMessage(space, message) {
   if (isDuplicateDelivery(message.id)) return;
 
   const spaceId = space.id;
-  let state = currentConversation(spaceId);
+  const rider = personKey(message, spaceId);
+  let state = currentConversation(rider);
   const responses = [];
   for (const content of messageContents(message.content)) {
     if (content.type === "text" && content.text.trim()) {
-      const result = processTextMessage(state, content.text);
+      const text = content.text.trim();
+      if (isMarketingPitch(text)) {
+        console.info("Ignored the Subway Mate marketing line.");
+        continue;
+      }
+      if (replyEcho.isEcho(rider, text)) {
+        console.info("Ignored an iMessage echo of the reply just sent.");
+        continue;
+      }
+      if (isRepeatedText(`${rider}\n${normalizeText(text)}`)) {
+        console.info("Ignored a repeated iMessage delivery.");
+        continue;
+      }
+      const result = processTextMessage(state, text);
       state = result.state;
       responses.push(result.reply);
     } else if (content.type === "attachment") {
@@ -60,10 +91,20 @@ async function handleMessage(space, message) {
       }
     }
   }
-  conversations.set(spaceId, state);
+  conversations.set(rider, state);
 
   if (!responses.length) return;
-  for (const response of responses) await space.send(response);
+  let previous = "";
+  for (const response of responses) {
+    if (response === previous || isMarketingPitch(response)) continue;
+    if (isRepeatedReply(normalizeText(response))) {
+      console.info("Skipped a duplicate iMessage reply.");
+      continue;
+    }
+    previous = response;
+    await space.send(response);
+    replyEcho.remember(rider, response);
+  }
 }
 
 export async function startIMessage() {

@@ -12,3 +12,20 @@ export function createMessageDeduplicator({ maxEntries = 5_000, ttlMs = 15 * 60 
     return false;
   };
 }
+
+export function createReplyEchoGuard({ ttlMs = 60_000 } = {}) {
+  const lastReply = new Map();
+  return {
+    remember(spaceId, text) {
+      const normalized = String(text || "").trim();
+      if (!spaceId || !normalized) return;
+      lastReply.set(spaceId, { text: normalized, at: Date.now() });
+    },
+    isEcho(spaceId, text) {
+      const entry = lastReply.get(spaceId);
+      if (!entry) return false;
+      if (Date.now() - entry.at > ttlMs) return false;
+      return entry.text === String(text || "").trim();
+    },
+  };
+}
