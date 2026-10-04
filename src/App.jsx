@@ -8,9 +8,12 @@ import {
   chooseObservationCandidate,
   hasDestinationIntent,
   hasLostContext,
+  asksForTrainTime,
+  isStepConfirmation,
   matchObservation,
   matchSignText,
   mapIndexFor,
+  nextTrainLine,
   observationClarificationLine,
   reportsLocation,
   rewindStep as rewindRouteStep,
@@ -453,6 +456,7 @@ export function App() {
   const originRef = useRef(null);
   const pendingTripRef = useRef(null);
   const pendingLocationCandidatesRef = useRef([]);
+  const arrivalsCacheRef = useRef({ tripId: "", at: 0, data: null });
 
   useEffect(() => { routeRef.current = route; }, [route]);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
@@ -772,7 +776,23 @@ export function App() {
     setRoute(updated);
   }, [clearUncertainRoute, equipmentStatuses, say]);
 
-  const handleMessage = useCallback((text) => {
+  const loadTripArrivals = useCallback(async (tripId) => {
+    if (!tripId) return null;
+    const cached = arrivalsCacheRef.current;
+    if (cached.tripId === tripId && cached.data && Date.now() - cached.at < 20_000) return cached.data;
+    try {
+      const response = await fetch(`/api/arrivals?tripId=${encodeURIComponent(tripId)}`);
+      if (!response.ok) return null;
+      const data = await response.json();
+      if (!Array.isArray(data?.next)) return null;
+      arrivalsCacheRef.current = { tripId, at: Date.now(), data };
+      return data;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const handleMessage = useCallback(async (text) => {
     clearPhotoScan();
     const active = routeRef.current;
     const requestedTrip = hasDestinationIntent(text) ? requestedTripId(text) : null;
@@ -846,12 +866,19 @@ export function App() {
         return;
       }
     }
+    const tripId = requestedTrip || active?.tripId || pendingTripRef.current;
+    const onFinalStep = Boolean(active)
+      && (arrivedRef.current || cursorRef.current >= active.steps.length - 1);
+    const arrivals = asksForTrainTime(text) || (isStepConfirmation(text) && onFinalStep)
+      ? await loadTripArrivals(tripId)
+      : null;
     const result = replyFor(text, active, cursorRef.current, arrivedRef.current, {
       stepFree,
       startNodeId: observedNode?.id || originRef.current,
       locationObserved: Boolean(observedNode),
       doneIds: doneRef.current,
       equipmentStatuses,
+      arrivals,
     });
     setDestination("");
     if (result.route) {
@@ -874,16 +901,22 @@ export function App() {
     }
     applyRouteResult(result);
     say(text, result.line);
-  }, [applyRouteResult, clearPhotoScan, clearUncertainRoute, equipmentStatuses, say, stepFree]);
+  }, [applyRouteResult, clearPhotoScan, clearUncertainRoute, equipmentStatuses, loadTripArrivals, say, stepFree]);
 
-  const confirmStep = useCallback(() => {
+  const confirmStep = useCallback(async () => {
     const active = routeRef.current;
     if (!active) return;
     if (arrivedRef.current) {
-      say("", active.arrivalLine || ARRIVAL_LINE);
+      const times = nextTrainLine(await loadTripArrivals(active.tripId));
+      const line = active.arrivalLine || ARRIVAL_LINE;
+      say("", times ? `${line} ${times}` : line);
       return;
     }
     const result = advanceStep(active, cursorRef.current, doneRef.current);
+    if (result.arrived) {
+      const times = nextTrainLine(await loadTripArrivals(active.tripId));
+      if (times) result.line = `${result.line} ${times}`;
+    }
     cursorRef.current = result.cursor;
     doneRef.current = result.doneIds;
     arrivedRef.current = result.arrived;
@@ -891,7 +924,7 @@ export function App() {
     setDoneIds(result.doneIds);
     setArrived(result.arrived);
     say("", result.line);
-  }, [say]);
+  }, [loadTripArrivals, say]);
 
   const goBackOneStep = useCallback(() => {
     const active = routeRef.current;

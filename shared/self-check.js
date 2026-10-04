@@ -812,4 +812,88 @@ assert(replyFor("okay", screenBronx, 0, false).cursor === undefined, "an unquali
 const finalVoiceConfirmation = replyFor("I've completed that", screenBronx, screenBronx.steps.length - 1, false);
 assert(finalVoiceConfirmation.arrived && /platform|boarding/i.test(finalVoiceConfirmation.line), "voice confirms the final step with a platform check");
 
+const liveArrivals = {
+  fetchedAt: Date.now(),
+  stationName: "Times Sq-42 St",
+  next: [
+    { label: "1 Van Cortlandt Park-242 St", at: Date.now() + 4 * 60000 },
+    { label: "2 Wakefield-241 St", at: Date.now() + 8 * 60000 },
+  ],
+};
+const trainTimeAnswer = replyFor("When is the train?", screenBronx, 0, false, { arrivals: liveArrivals });
+assert(
+  /still on the way/i.test(trainTimeAnswer.line)
+    && /Van Cortlandt Park-242 St in 4 minutes/i.test(trainTimeAnswer.line)
+    && /check the train sign/i.test(trainTimeAnswer.line),
+  "a train-time question uses the platform feed without skipping the walk",
+);
+assert(
+  /can't get live train times/i.test(replyFor("When is the train?", screenBronx, 0, false).line),
+  "a train-time question says when the feed is missing",
+);
+const staleArrivals = { ...liveArrivals, fetchedAt: Date.now() - 4 * 60000 };
+assert(
+  /can't get live train times/i.test(replyFor("how soon", screenBronx, 0, false, { arrivals: staleArrivals }).line),
+  "a train-time question ignores a stale feed",
+);
+const arrivedWithTimes = replyFor("I'm there", screenBronx, screenBronx.steps.length - 1, false, { arrivals: liveArrivals });
+assert(
+  arrivedWithTimes.arrived && /Van Cortlandt Park-242 St in 4 minutes/i.test(arrivedWithTimes.line),
+  "reaching the platform includes the next trains",
+);
+const imessageTimes = processTextMessage(imessageStart.state, "when is the train", { arrivals: liveArrivals });
+assert(
+  /still on the way/i.test(imessageTimes.reply) && imessageTimes.state.cursor === 0,
+  "iMessage can answer a train-time question without advancing the route",
+);
+
+const rewindByText = replyFor("go back one step", screenBronx, firstVoiceConfirmation.cursor, false, {
+  doneIds: firstVoiceConfirmation.doneIds,
+});
+assert(
+  rewindByText.cursor === 0
+    && rewindByText.doneIds.length === 0
+    && /go back one step/i.test(rewindByText.line),
+  "saying go back one step undoes the last confirmation",
+);
+assert(
+  /no step to undo/i.test(replyFor("go back", null, 0, false).line),
+  "go back before a route starts does not invent a direction",
+);
+const imessageRewind = processTextMessage(imessageAdvance.state, "previous step");
+assert(
+  imessageRewind.state.cursor === 0 && imessageRewind.state.doneIds.length === 0,
+  "iMessage can undo one confirmed step",
+);
+const elevatorStatus = replyFor("Is EL232 working?", null, 0, false);
+assert(
+  /EL232/.test(elevatorStatus.line)
+    && /out of service/i.test(elevatorStatus.line)
+    && /not a live outage check/i.test(elevatorStatus.line),
+  "an elevator-code question uses the station inventory and says it is not live",
+);
+const refreshedElevator = replyFor("elevator status", null, 0, false, {
+  equipmentStatuses: { EL619: "RNOS", EL231X: "IFIS", EL230: "IFIS", EL229: "RNOS", EL233: "RNOS", EL232: "RNOS" },
+});
+assert(
+  /EL619/.test(refreshedElevator.line) && /not a live outage check/i.test(refreshedElevator.line),
+  "a general elevator question can use a refreshed inventory snapshot",
+);
+const stepFreePreference = processTextMessage(createConversationState(), "I need a step-free route");
+const stepFreeQueens = processTextMessage(stepFreePreference.state, "Queens");
+assert(
+  stepFreePreference.state.stepFree === true
+    && /no verified step-free path/i.test(stepFreeQueens.reply),
+  "iMessage keeps a step-free request for the next destination",
+);
+const blockedElevator = processTextMessage(
+  { ...createConversationState(), stepFree: true, pendingTripId: "nqrw-uptown" },
+  "I'm at the EL619 elevator",
+  { equipmentStatuses: { EL230: "RNOS" } },
+);
+assert(
+  /no verified step-free/i.test(blockedElevator.reply) && !blockedElevator.state.route,
+  "iMessage step-free routing uses the refreshed elevator inventory",
+);
+
 console.log("self-check ok");

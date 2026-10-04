@@ -9,6 +9,10 @@ const OBSERVATION_CUE = /\b(i see|i can see|i(?:'m| am) looking at|i(?:'m| am) l
 const LOST_CONTEXT = /\b(?:lost|i see|i can see|i(?:'m| am) looking at|i(?:'m| am) (?:at|by|near|on)|standing (?:by|near|at)|where am i|around me|near me)\b/i;
 const LOCATION_REPORT = /\b(?:lost|i see|i can see|i(?:'m| am) looking at|i(?:'m| am) (?:at|by|near|on)|standing (?:by|near|at)|around me|near me)\b/i;
 const NEEDS_RECOVERY = /\b(?:lost|can't find|cannot find|don't see|do not see|not sure where|confused|stuck)\b/i;
+const BACK_ONE_STEP = /^(?:go back(?: one step)?|back one step|previous step|undo(?: that)?)\.?$/i;
+const TRAIN_TIME = /\b(?:when(?: is| are|'s)?|how (?:long|soon)|what time|minutes away|arrival time|train time)\b/i;
+const STEP_CONFIRMATION = /^(?:(?:okay|ok)[, ]*)?(?:i(?:'m| am) (?:there|here)|i(?:'ve| have) (?:done|completed) (?:that|this step)|that(?:'s| is) done|done with (?:that|this step)|i reached (?:it|there))\.?$/i;
+const ELEVATOR_STATUS_QUESTION = /\b(?:elevator status|elevators? (?:working|in service|out of service|open|broken|down)|is (?:the |an )?elevator|are the elevators)\b|\bel\d{3}x?\b/i;
 const NON_LOCATION_TERMS = new Set([
   "uptown",
   "bronx",
@@ -362,6 +366,39 @@ function unsupportedDestinationLine(text) {
   return `I can't map that destination using this station's local directions. I can guide you to: ${destinations}.`;
 }
 
+function elevatorStatusPhrase(code) {
+  if (code === "IFIS") return "listed in service";
+  if (code === "RNOS") return "listed out of service";
+  if (code === "UNKNOWN") return "missing from the latest inventory";
+  return `listed as ${code}`;
+}
+
+export function elevatorInventoryLine(text, equipmentStatuses = {}) {
+  const asked = [...String(text || "").toUpperCase().matchAll(/\bEL\d{3}X?\b/g)].map((match) => match[0]);
+  const assets = station.elevatorAssets || [];
+  const chosen = asked.length
+    ? assets.filter((asset) => asked.includes(asset.equipmentCode))
+    : assets;
+  if (!chosen.length) {
+    return "I don't have that elevator in the Times Square inventory. I can check EL619, EL231X, EL230, EL229, EL233, and EL232. This is not a live outage check.";
+  }
+  if (asked.length) {
+    const details = chosen.map((asset) => {
+      const code = equipmentStatuses[asset.equipmentCode] || asset.serviceStatusCode;
+      const where = (asset.connects || []).join(" to ");
+      return `${asset.equipmentCode} (${where}) is ${elevatorStatusPhrase(code)}`;
+    });
+    return `${details.join(". ")}. This is the MTA elevator inventory, not a live outage check. Confirm with station staff before you rely on it.`;
+  }
+  const inService = [];
+  const unavailable = [];
+  for (const asset of chosen) {
+    const code = equipmentStatuses[asset.equipmentCode] || asset.serviceStatusCode;
+    (code === "IFIS" ? inService : unavailable).push(asset.equipmentCode);
+  }
+  return `In the MTA inventory, ${inService.join(", ") || "none"} are listed in service. ${unavailable.join(", ") || "None"} are listed out of service or missing. This is not a live outage check. Confirm with station staff before you rely on one.`;
+}
+
 function stepFreeUnavailableLine(startNode, destination) {
   const startName = startNode?.name || "this location";
   return `No verified step-free path from ${startName} to ${destination}. The only mapped step-free platform route is Uptown N/Q/R/W from elevator EL619 at the northwest corner of 43rd Street and Broadway. Use that route only if you are standing there.`;
@@ -474,6 +511,42 @@ function lookForLine(step) {
   return `Look for ${cue || step.name}.${signHint} Stop at ${step.name}, then tell me when you're there.`;
 }
 
+export function isStepConfirmation(text) {
+  const spokenText = String(text || "").replace(/[‘’]/g, "'");
+  return STEP_CONFIRMATION.test(spokenText.trim());
+}
+
+export function asksForTrainTime(text) {
+  return TRAIN_TIME.test(String(text || ""));
+}
+
+export function nextTrainLine(arrivals, now = Date.now()) {
+  if (!arrivals?.next?.length) return "";
+  const age = now - arrivals.fetchedAt;
+  if (!Number.isFinite(arrivals.fetchedAt) || age > 3 * 60 * 1000) return "";
+  const upcoming = arrivals.next
+    .map((item) => ({
+      label: item.label,
+      minutes: Math.round((item.at - now) / 60000),
+    }))
+    .filter((item) => item.label && Number.isFinite(item.minutes))
+    .sort((left, right) => left.minutes - right.minutes)
+    .slice(0, 2);
+  if (!upcoming.length) return "";
+  const phrase = upcoming.map((item) => {
+    if (item.minutes <= 0) return `${item.label} arriving now`;
+    if (item.minutes === 1) return `${item.label} in 1 minute`;
+    return `${item.label} in ${item.minutes} minutes`;
+  }).join(", then ");
+  const place = arrivals.stationName ? ` at ${arrivals.stationName}` : "";
+  return `Next${place}: ${phrase}. Check the train sign before you board.`;
+}
+
+function lineWithTrainTimes(line, arrivals) {
+  const times = nextTrainLine(arrivals);
+  return times ? `${line} ${times}` : line;
+}
+
 export function replyFor(text, route, cursor, arrived, options = {}) {
   const stepFree = Boolean(options.stepFree || ACCESSIBILITY_TERMS.test(text));
   const picked = matchRoute(text, { ...options, stepFree });
@@ -484,10 +557,18 @@ export function replyFor(text, route, cursor, arrived, options = {}) {
     }
   }
   const spokenText = String(text || "").replace(/[‘’]/g, "'");
-  const stepConfirmation = /^(?:(?:okay|ok)[, ]*)?(?:i(?:'m| am) (?:there|here)|i(?:'ve| have) (?:done|completed) (?:that|this step)|that(?:'s| is) done|done with (?:that|this step)|i reached (?:it|there))\.?$/i
-    .test(spokenText.trim());
-  if (route && !arrived && stepConfirmation) {
-    return advanceStep(route, cursor, options.doneIds || []);
+  const askingTimes = asksForTrainTime(text);
+  if (route && !arrived && isStepConfirmation(spokenText)) {
+    const result = advanceStep(route, cursor, options.doneIds || []);
+    if (result.arrived) result.line = lineWithTrainTimes(result.line, options.arrivals);
+    return result;
+  }
+  if (BACK_ONE_STEP.test(spokenText.trim())) {
+    if (!route) return { line: "There's no step to undo yet. Tell me where you want to go." };
+    return rewindStep(route, cursor, options.doneIds || [], arrived);
+  }
+  if (ELEVATOR_STATUS_QUESTION.test(text)) {
+    return { line: elevatorInventoryLine(text, options.equipmentStatuses) };
   }
   const query = normalizeText(text);
   if (!route && /\b(?:hello|hi|hey)\b/.test(query)) {
@@ -529,9 +610,26 @@ export function replyFor(text, route, cursor, arrived, options = {}) {
           locationMatched: startNode.id,
         };
       }
+      if (askingTimes) {
+        return { line: "Tell me where you're going, such as the Bronx, Queens, or Brooklyn, and I'll check the next trains." };
+      }
       return { line: unsupportedDestinationLine(text) };
     }
-    return { route: picked, cursor: 0, doneIds: [], arrived: false, line: startLine(picked) };
+    let line = startLine(picked);
+    if (askingTimes) {
+      const times = nextTrainLine(options.arrivals);
+      line = times ? `${line} ${times}` : `${line} I can't get live train times right now.`;
+    }
+    return { route: picked, cursor: 0, doneIds: [], arrived: false, line };
+  }
+
+  if (route && askingTimes) {
+    const times = nextTrainLine(options.arrivals);
+    if (!times) {
+      return { line: `I can't get live train times right now. ${route.arrivalLine || ARRIVAL_LINE}` };
+    }
+    const walking = arrived ? "" : "You're still on the way. ";
+    return { line: `${walking}${times}` };
   }
 
   if (options.locationObserved && options.startNodeId) {
@@ -620,7 +718,7 @@ export function replyFor(text, route, cursor, arrived, options = {}) {
             : "The map shows no stairs on this path, but full step-free access is not verified. Ask station staff if you need step-free access.",
     };
   }
-  if (arrived) return { line: route.arrivalLine || ARRIVAL_LINE };
+  if (arrived) return { line: lineWithTrainTimes(route.arrivalLine || ARRIVAL_LINE, options.arrivals) };
   if (/\b(current step|what next|next step|repeat|say that again)\b/.test(query)) {
     const step = route.steps[cursor];
     return { line: step?.instruction || ARRIVAL_LINE };
@@ -629,6 +727,6 @@ export function replyFor(text, route, cursor, arrived, options = {}) {
     return { line: "You're welcome. Say “next step” whenever you're ready to continue." };
   }
   return {
-    line: "I can repeat this step, tell you what sign to look for, or help if you're lost. I don't have live train times or live elevator status.",
+    line: "I can repeat this step, go back one step, tell you what sign to look for, or help if you're lost. Ask when the train is coming for a live platform check. Ask for an elevator code, such as EL619, for its inventory status. That elevator answer is not a live outage check.",
   };
 }

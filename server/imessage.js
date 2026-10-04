@@ -3,6 +3,9 @@ import { Spectrum } from "spectrum-ts";
 import { imessage } from "spectrum-ts/providers/imessage";
 import station from "../shared/times-square.json" with { type: "json" };
 import { scanIMessageAttachment, stopIMessageImageReader } from "./imessage-images.js";
+import { asksForTrainTime, isStepConfirmation, requestedTripId } from "../src/mockRoutes.js";
+import { arrivalsForTripId } from "./arrivals.js";
+import { loadElevatorInventory } from "./elevator-inventory.js";
 import { createConversationState, processTextMessage } from "./imessage-guide.js";
 import { createMessageDeduplicator, createReplyEchoGuard } from "./message-dedupe.js";
 
@@ -28,6 +31,20 @@ function normalizeText(text) {
 }
 let spectrum;
 let connectionStatus = "disabled";
+let warnedElevatorInventory = false;
+
+async function chatEquipmentStatuses() {
+  try {
+    const inventory = await loadElevatorInventory();
+    return inventory.equipmentStatuses || {};
+  } catch (error) {
+    if (!warnedElevatorInventory) {
+      warnedElevatorInventory = true;
+      console.warn(`Elevator inventory refresh failed; using the station-file snapshot. ${safeError(error)}`);
+    }
+    return {};
+  }
+}
 
 function currentConversation(spaceId) {
   let state = conversations.get(spaceId);
@@ -61,6 +78,7 @@ async function handleMessage(space, message) {
   const spaceId = space.id;
   const rider = personKey(message, spaceId);
   let state = currentConversation(rider);
+  const equipmentStatuses = await chatEquipmentStatuses();
   const responses = [];
   for (const content of messageContents(message.content)) {
     if (content.type === "text" && content.text.trim()) {
@@ -77,7 +95,13 @@ async function handleMessage(space, message) {
         console.info("Ignored a repeated iMessage delivery.");
         continue;
       }
-      const result = processTextMessage(state, text);
+      const tripId = requestedTripId(text) || state.pendingTripId || state.route?.tripId || null;
+      const onFinalStep = Boolean(state.route)
+        && (state.arrived || state.cursor >= state.route.steps.length - 1);
+      const arrivals = tripId && (asksForTrainTime(text) || (isStepConfirmation(text) && onFinalStep))
+        ? await arrivalsForTripId(tripId)
+        : null;
+      const result = processTextMessage(state, text, { equipmentStatuses, arrivals });
       state = result.state;
       responses.push(result.reply);
     } else if (content.type === "attachment") {

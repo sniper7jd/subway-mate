@@ -12,6 +12,8 @@ import {
   tripById,
 } from "../shared/guidance.js";
 import { buildVisionCueCatalog, sanitizeVisionCueMatch } from "../shared/vision.js";
+import { loadArrivals } from "./arrivals.js";
+import { loadElevatorInventory } from "./elevator-inventory.js";
 import { getIMessageStatus, startIMessage, stopIMessage } from "./imessage.js";
 
 const app = express();
@@ -19,9 +21,6 @@ app.use(express.json({ limit: "8mb" }));
 
 const PORT = Number(process.env.PORT || 8787);
 const MODEL = process.env.XAI_MODEL || "grok-4.6";
-const ELEVATOR_SOURCE = "https://data.ny.gov/resource/94fv-bak7.json";
-const ELEVATOR_CACHE_MS = 5 * 60 * 1000;
-let elevatorInventoryCache = null;
 const visionAttempts = new Map();
 
 function isVisionRateLimited(req) {
@@ -139,61 +138,6 @@ function parseJson(text) {
   const end = clean.lastIndexOf("}");
   if (start === -1 || end === -1) throw new Error("Grok did not return JSON");
   return JSON.parse(clean.slice(start, end + 1));
-}
-
-async function loadArrivals(trip) {
-  const url = `https://subwayinfo.nyc/api/arrivals?station_id=${encodeURIComponent(trip.arrival.stationId)}`;
-  const response = await fetch(url, { headers: { "User-Agent": "SubwayMate/1.0" } });
-  if (!response.ok) throw new Error(`Arrivals request failed (${response.status})`);
-  const data = await response.json();
-  const next = (data.arrivals || [])
-    .filter((item) => trip.arrival.lines.includes(item.line) && item.direction === trip.arrival.direction)
-    .sort((a, b) => a.minutesAway - b.minutesAway)
-    .slice(0, 2)
-    .map((item) => ({
-      label: `${item.line} ${item.headsign || trip.arrival.label}`,
-      at: Date.parse(item.arrivalTime),
-    }))
-    .filter((item) => Number.isFinite(item.at));
-  return { fetchedAt: Date.now(), next, stationName: data.stationName || station.stationName };
-}
-
-async function loadElevatorInventory() {
-  if (elevatorInventoryCache && Date.now() - elevatorInventoryCache.fetchedAt < ELEVATOR_CACHE_MS) {
-    return elevatorInventoryCache;
-  }
-  const url = new URL(ELEVATOR_SOURCE);
-  url.searchParams.set("$where", "station_complex_mrn='611'");
-  url.searchParams.set("$select", "equipment_code,service_status_code,service_status,notes");
-  url.searchParams.set("$limit", "100");
-  const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-  if (!response.ok) throw new Error(`MTA elevator inventory request failed (${response.status})`);
-  const records = await response.json();
-  if (!Array.isArray(records)) throw new Error("MTA elevator inventory returned an invalid response");
-  const equipmentStatuses = Object.fromEntries(records
-    .filter((record) => typeof record.equipment_code === "string" && typeof record.service_status_code === "string")
-    .map((record) => [record.equipment_code, record.service_status_code]));
-  for (const asset of station.elevatorAssets || []) {
-    if (!Object.hasOwn(equipmentStatuses, asset.equipmentCode)) {
-      equipmentStatuses[asset.equipmentCode] = "UNKNOWN";
-    }
-  }
-  const result = {
-    source: ELEVATOR_SOURCE,
-    datasetId: "94fv-bak7",
-    fetchedAt: Date.now(),
-    live: false,
-    equipmentStatuses,
-    equipment: records.map((record) => ({
-      equipmentCode: record.equipment_code,
-      serviceStatusCode: record.service_status_code,
-      serviceStatus: record.service_status,
-      notes: record.notes || "",
-    })),
-    notice: "MTA inventory is periodically updated, not a live outage feed. Confirm elevator availability with MTA or station staff.",
-  };
-  elevatorInventoryCache = result;
-  return result;
 }
 
 app.get("/api/health", (_req, res) => {

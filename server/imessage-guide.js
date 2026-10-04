@@ -60,11 +60,12 @@ function updateFromRouteResult(state, result) {
   return { state, reply: result.line };
 }
 
-function replanAtNode(state, node) {
+function replanAtNode(state, node, equipmentStatuses = {}) {
   const tripId = state.pendingTripId || state.route?.tripId;
   const trip = tripId ? routeForTrip(tripId, {
     startNodeId: node.id,
     stepFree: state.stepFree,
+    equipmentStatuses,
   }) : null;
   if (!trip) {
     const failedTrip = tripId ? tripNameForId(tripId) : "";
@@ -108,7 +109,7 @@ function replanAtNode(state, node) {
   return { ...updated, reply: `${directionNote}${updated.reply}` };
 }
 
-function confirmImageCandidate(state, text) {
+function confirmImageCandidate(state, text, equipmentStatuses) {
   const confirmMatch = String(text || "").trim().match(/^confirm(?:\s+location)?(?:\s+(.+))?$/i);
   if (!confirmMatch || !state.pendingImageNodeIds.length) return null;
   const candidates = state.pendingImageNodeIds
@@ -127,7 +128,7 @@ function confirmImageCandidate(state, text) {
         : `I couldn't match that confirmation to ${candidates.map((candidate) => candidate.name).join(" or ")}. Reply CONFIRM LOCATION followed by the exact place name, only if you're standing there.`,
     };
   }
-  const next = replanAtNode({ ...state, pendingImageNodeIds: [] }, node);
+  const next = replanAtNode({ ...state, pendingImageNodeIds: [] }, node, equipmentStatuses);
   return {
     ...next,
     reply: `Thanks for confirming you're physically at ${node.name}. ${next.reply}`,
@@ -163,9 +164,13 @@ export function processImageText(state, recognizedText) {
   };
 }
 
-export function processTextMessage(currentState, text) {
-  const state = currentState || createConversationState();
+const STEP_FREE_REQUEST = /\b(step[- ]?free|wheelchair|accessible|no stairs)\b/i;
+
+export function processTextMessage(currentState, text, options = {}) {
+  let state = currentState || createConversationState();
+  const equipmentStatuses = options.equipmentStatuses || {};
   const message = String(text || "").trim();
+  if (STEP_FREE_REQUEST.test(message)) state = { ...state, stepFree: true };
   if (!message) {
     return { state, reply: "Send a destination or describe a station sign. You can also attach a clear sign photo." };
   }
@@ -180,7 +185,7 @@ export function processTextMessage(currentState, text) {
     return { state: createConversationState(), reply: "Okay, have a great rest of your day." };
   }
 
-  const photoConfirmation = confirmImageCandidate(state, message);
+  const photoConfirmation = confirmImageCandidate(state, message, equipmentStatuses);
   if (photoConfirmation) return photoConfirmation;
 
   const pendingTripId = hasDestinationIntent(message)
@@ -212,8 +217,8 @@ export function processTextMessage(currentState, text) {
   if (observation.node) {
     const next = replanAtNode({
       ...withTrip,
-      stepFree: state.stepFree || /\b(step[- ]?free|wheelchair|accessible|no stairs)\b/i.test(message),
-    }, observation.node);
+      stepFree: state.stepFree || STEP_FREE_REQUEST.test(message),
+    }, observation.node, equipmentStatuses);
     return {
       state: { ...next.state, pendingLocationCandidates: [] },
       reply: next.reply,
@@ -233,6 +238,9 @@ export function processTextMessage(currentState, text) {
   const result = replyFor(message, state.route, state.cursor, state.arrived, {
     startNodeId: state.startNodeId,
     doneIds: state.doneIds,
+    stepFree: state.stepFree,
+    equipmentStatuses,
+    arrivals: options.arrivals || null,
   });
   return updateFromRouteResult({
     ...withTrip,
