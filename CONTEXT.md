@@ -1,109 +1,64 @@
 # Subway Mate handoff
 
-This file is the project memory. Read it before changing the demo. The running app is a phone website for one station: Times Square–42 St. A friend can continue from the hardcoded walk that is on screen today, or turn the older station file and server back on.
+Subway Mate is a phone website for local-first wayfinding inside one station: Times Square–42 St. Read this file before changing the demo. Route choice, steps, and step-free filtering now come from `shared/times-square.json` and `shared/guidance.js`; do not restore hardcoded destination walks.
 
-## What it is
+## Product and scope
 
-People get lost inside subway stations. Subway Mate is a phone website, not a native app. You hold the phone, see a short walk, hear the same words, and press a button when you are looking at the next sign. The destination is a place, such as the Bronx or Queens, not a train name. The app answers with the train, the platform, and step-by-step walking directions.
+People get lost inside subway stations. The default route starts at the 42nd Street and Seventh Avenue entrance; riders who start elsewhere can identify a mapped sign/landmark or confirm a photo match. The rider chooses a destination, gets the train and platform level, hears and reads one station-file direction at a time, and explicitly confirms each completed step. This is a browser website, not a native app. Indoor positioning is unavailable, so make the default start clear and allow a rider to correct it.
 
-The hackathon demo is Times Square only. Judges open it in a browser. Profiles that were designed but are not on the current screen: tourist, low vision, deaf, and wheelchair. Wheelchair routing must not use stairs. That rule still lives in `shared/guidance.js`.
+The station file supports the Bronx (uptown 1/2/3), downtown 1/2/3 toward One World Trade Center, Queens/Flushing (7), and a specific Brooklyn destination—Atlantic Av–Barclays Center via a Brooklyn-bound 2 or 3—from the default 42nd Street and Seventh Avenue entrance. “Brooklyn” means that one station only; never tell a rider to board a 1 for that destination. The official station-complex record is complex 617, GTFS stop ID 235. The graph has a path to the Broadway plaza shuttle connection but does not verify shuttle platform access. Uptown N/Q/R/W is mapped only from the MTA-listed EL619 entrance at the northwest corner of 43rd Street and Broadway, via EL230. Downtown N/Q/R/W has no mapped path. Unknown alternate starts and destinations get an explicit clarification instead of a guessed route.
 
-## How the idea changed
+## Current behavior
 
-1. The first idea was an indoor wayfinding agent for a station, with a camera, voice, and a local station file so the model could not invent nodes, distances, or compass degrees.
-2. It became a Vite and React site plus a small Express server. Grok (xAI) was used only when online, and only to phrase a route that the local file already knew. Offline, the trip lived in the browser.
-3. Live arrivals were tried for one line of the active trip, from subwayinfo.nyc, with a three-minute stale limit. That is not on the demo path now.
-4. On-device OCR (Tesseract) was tried so a sign photo never had to leave the phone. Webcam frames did not read reliably. A coarse color match against a handful of sign pictures was tried next. Pointing a camera at those pictures still failed often enough that the demo button no longer reads the image.
-5. The pitch version is fully local and scripted. Two walks are hardcoded. The sign button advances the script. The map shows only the real walk, not a fake wrong turn. The older server, station graph, and sign matcher are still in the repo for later, and the screen does not call them.
+- The welcome screen uses the 42nd Street and Seventh Avenue entrance as the default origin, so a destination alone starts a route from there. Riders elsewhere can report a mapped cue/location to replan; photo matches still require confirmation. Step-free routing separately requires the explicit EL619 start action.
+- The destination form and optional browser speech recognition resolve station aliases and trip aliases, build a path from the selected entrance with `findPath`, and display the route's graph edge instructions. The spoken prompt stays brief; the rider can say “okay, I'm there” or “I've completed that step” to advance one edge. “Okay” alone does not advance.
+- A lost rider can describe a known station-file landmark or sign (for example, “I'm lost; I see the green globe. Take me to Queens.”) or select/take a sign photo. Text descriptions match station-file names, levels, expected text, and landmarks; when a message also contains a destination request, location matching ignores the destination clause and route selection prioritizes the destination after it. This prevents “7 train stairs” from overriding “take me to the Bronx.” Replies identify the rider's starting point and destination, then give one graph-derived action, a named stopping point, and a prompt to say “I'm there” or tap the step-confirmation button. Unknown reports ask for sign direction/train markers, a street corner, or elevator code instead of a generic answer. Photo OCR runs locally from bundled Tesseract assets and reads visible words/numbers only; it does not recognize objects, colors, or logos. A candidate must match explicit line markers plus expected direction text, a mapped nearby-business name, or a distinctive node `photoCueText`. Shared text such as EL230 remains ambiguous between nodes. A photo only proposes a candidate; it never establishes location or changes route until the rider confirms they are physically standing there. Unknown, ambiguous, and line-conflicting text is rejected, and no photo scan advances a route step. If the rider confirms a known location but hasn't picked a destination, the app remembers that start. Traversable station links have explicit forward and reverse instructions so the rider can recover toward another platform. Interchanges without a verified graph connection remain disconnected; the app explains that instead of guessing.
+- The lost-location dialog retains an understood destination while it asks for a more specific starting clue; the rider can answer a cue clarification with a short choice (for example, “stairs” or “platform” for the purple 7 marker) and get guidance from that mapped node. Observation matching requires distinctive phrases/sign context rather than partial words such as “station,” “Broadway,” or “42nd Street,” which previously could identify the wrong entrance/platform. If a step was confirmed by mistake, **Back one step** reopens the previous instruction, including after the final step was marked complete.
+- The sign-photo tool includes on-device demo fixtures so the OCR and confirmation workflow can be tried away from Times Square. In particular, a Downtown/Brooklyn N/R sign must not resolve to the 1/2/3 platform; blank and unsupported images leave location and route unchanged.
+- The live camera has an explicit **Analyze this frame online** action when the server reports xAI vision configured. It submits one downscaled still to `/api/vision-cue` (not continuous video), and says so beside the control. The endpoint supplies only station-file cues to xAI, ignores model-invented node IDs, and derives candidates from exact cue strings present in the station graph. The rider must confirm physical presence before replanning; analysis never advances a step. Shared cues remain ambiguous and unknown scenes ask for a clearer clue. This uses a configured pretrained vision model; it is not custom training or indoor positioning. With no key/network, local OCR and routing continue working.
+- The OCR worker warms when the route screen opens, loading the model off the main thread while the rider can continue with text. Input photos are downscaled to a 1280-pixel long edge and OCR uses sparse-text segmentation; scans time out after 15 seconds with a clear retry/retake path. Route nodes contain vetted `visualCues` displayed alongside directions. The linked YouTube page yielded only a title (no captions or usable frames) here, so don't claim the added cues were extracted from that video.
+- OCR can also resolve distinctive station-file nearby businesses to mapped entrance nodes: Baskin-Robbins -> Broadway plaza entrance; McDonald's -> 42nd Street and Seventh Avenue entrance. These are starting-location hints, not platform detections. Uptown/Downtown platform matching still requires the direction text plus compatible 1/2/3 markers. Keep visible confirmation before relocating.
+- **Step-free route** filters stairs and equipment that the station-file or refreshed MTA asset inventory marks unavailable. Both endpoints must be marked accessible. Only the EL619-to-mezzanine-to-EL230 uptown N/Q/R/W path is currently supported step-free. Selecting the preference reveals a dedicated action; the rider must confirm they are physically at the northwest-corner EL619 entrance before the route starts. Other step-free destinations are refused with this mapped alternative described, not a generic no-path message. EL233 (1/2/3 platform access) and EL232 (7 platform access) are marked out of service; the app refuses a step-free route to those platforms. If there is no graph path, do not substitute a scripted or guessed route.
+- Brooklyn resolves specifically to Atlantic Av–Barclays Center using the downtown 1/2/3 graph path. The route says to board only a Brooklyn-bound 2 or 3 and not a 1. Complex/stop IDs and served routes come from MTA Subway Stations and Complexes dataset `5f5g-n3cz`; this does not establish every service pattern or a complete Brooklyn map.
+- Station visual cue aliases include the Bronx-bound IRT 7th Avenue passageway, the uptown Broadway “42” mosaic, and a dated Knickerbocker Hotel sign cue in the shuttle area, based on Wikimedia Commons photo descriptions recorded with source URLs and licenses in `shared/times-square.json`. The app also lists known local-map clues (green globe, 1/2/3 directional roundel, purple 7 bullet/tile, IRT Flushing Line wording, EL619/EL230, and the mapped McDonald's/Baskin-Robbins locations). A named shop only resolves to its mapped street-side entrance/plaza; it is not an interior position. Turnstiles, fare gates, ticket machines, generic signage, and unnamed shops are ambiguous and must not be assigned a graph node. Ask for the sign's line plus direction, street corner, exit name, or exact shop name. Those captions establish only the described photo cues, not an exhaustive or current landmark survey. The provided YouTube tour exposed a title but no captions or accessible video frames here, so do not claim any new cues came from it.
+- The MTA **Subway Entrances and Exits: 2024** dataset (`i9wp-a4ja`) is cited for its street-entrance inventory (entrance type, entry/exit flags, coordinates, and GTFS stop ID). It is static and does not map indoor corridors; never infer a route edge from an entrance coordinate. A Wikimedia Commons photo caption for an escalator toward the IRT Flushing Line platforms (June 2013, CC BY-SA 3.0) supports “IRT Flushing Line” as an alternate 7-line clue only. That clue is deliberately ambiguous between the 7 stair area and platform, and the old image is not evidence of current escalator availability. A second Commons caption (September 2021, CC BY-SA 4.0) describes a Knickerbocker Hotel sign in the shuttle area; use it as a dated cue, never as proof the sign remains or that the shuttle platform path is verified.
+- Route chat answers “what sign should I look for?”, “where am I?”, “which train do I need?”, and “I can't find the sign” from the active graph path/checkpoint and station-file cues. It stays local and deterministic; do not delegate route wording to an unconstrained remote model that could invent paths or signs. Lost/unknown reports prompt riders to pause safely and share sign text/photo rather than repeat a blind instruction. Final responses retain line/direction boarding checks and do not claim the rider boarded.
+- The server proxies the official MTA elevator inventory at `/api/mta/elevators` and caches successful responses for five minutes. It is periodically updated inventory, not live outage status. If the endpoint fails, the app keeps the dated offline snapshot and warns riders to confirm elevator availability with station staff. Official station-complex metadata adds station/line/stop IDs but is not pathway topology. The named GTFS-Pathways endpoint returned HTTP 403 and is not used.
+- The current step, train, platform, and step-free status can be asked about in chat or by voice. Browser speech recognition is preferred. If unavailable, optional server transcription works only when `XAI_API_KEY` is configured; recordings then go to the same-origin server. Otherwise voice reports that transcription is unavailable and typed input remains functional. The app does not claim live arrivals or live elevator status.
+- Press **I've completed this step** after actually completing the displayed direction. This advances exactly one path edge. The local sign-photo reader does not upload images. The camera preview itself stays local; only the explicit online analysis action sends one compressed still to the same-origin server and xAI. Neither local nor online image analysis changes the location or route without rider confirmation, and neither advances a step.
+- The map is a sequence of graph nodes and edge instructions. It does not show invented walking distances, compass bearings, or wrong-way detours. Completion means the local station-file directions have ended, not that a train is arriving.
+- Speech synthesis is optional. Typed destination and route guidance stay local and work without camera, microphone, network, or the Express API. Photo OCR needs the production PWA assets cached once; the worker, core, and language model are precached same-origin files. Browser speech recognition may use an online browser service and is not required.
 
-Do not invent foot distances or surveyed compass bearings for a future real graph. The scripted demo does use the distances the demo script asked for (30 meters, 15 meters, and so on). Those numbers are demo copy, not a survey.
+## Data and accuracy boundaries
 
-## What the judge sees now
+`shared/times-square.json` is the source of station nodes, destination aliases, trip targets, platform levels, expected sign text, landmarks, OCR line markers and text cues (`photoCueText`), visual cues, and weighted graph edges. Each traversable edge may include an explicit `reverseInstruction`; the pathfinder only makes that connection reversible when that instruction is present. Edge weights are path costs, not surveyed foot distances. No precise distances or compass headings are available, so the screen must not manufacture them. The YouTube tour linked during implementation exposed only a title here, not a transcript or verified frame data; it was not used to add unseen landmarks or routes.
 
-1. Welcome screen: “Move through the subway with confidence.” Either button starts the same flow.
-2. About a second of “Detecting current location.”
-3. Spoken and written: “You entered the 42nd Street–Times Square station. Where do you want to go?”
-4. Bronx or Queens (Flushing counts as Queens). Anything else, including One World Center, gets: “This demo only walks to the Bronx or Queens.”
-5. The reply names the train and platform, then step 1. The arrow points the walk and shows the distance. North is up, east is right, west is left.
-6. The map has three checkpoints. There is no “walk back” detour on the map.
-7. “Read this sign” does not look at the camera. Each press completes the current step and speaks the next one. The last press says the train is on your left in about five minutes. End returns to the welcome screen.
-8. The chat history scrolls. The speaker button repeats the latest mate line. Questions during a walk are answered from the current step: which train, which platform, where you are.
+Step-free routing excludes stairs and equipment not marked IFIS, and refuses destinations without an accessible graph path. The offline status comes from the stored MTA Elevator and Escalator Asset Inventory record set for complex 611, retrieved 2026-10-03; that dataset is not a live outage feed. Online refresh is optional and same-origin proxied. Do not turn complex membership into guessed corridor links, and do not add a live MTA/GTFS claim unless a verified data source supports it. Sign-image OCR must map only to known station-file node IDs; `lineMarkers` disambiguates train families (for example, N/R cannot resolve to the 1/2/3 platform). OCR text is not proof of rider location: require confirmation before replanning and never advance on an unknown, ambiguous, or conflicting sign. No walking distances or compass bearings are presented.
 
-### Bronx, the 1 train
+The camera stream stays local and video-only; microphone access is requested only by voice input. A separate, explicit camera-analysis action sends one still to the same-origin server and xAI when `XAI_API_KEY` is configured; the server does not store it. Core route selection does not need a remote service. Keep `.env` local and never commit API keys. The inventory request, transcription endpoint, and online vision endpoint are optional; typed offline routing remains available.
 
-Train: 1 Train (Uptown & The Bronx). Platform 2, upper level.
+## Code map
 
-1. Walk straight north 30 meters through the main turnstiles. Keep the station booth on your right.
-2. Turn right. Walk 15 meters toward the red circular 1 signs. Main mezzanine corridor.
-3. Turn left and head down the stairs. Handrail on the right. Platform is 20 steps down.
-4. Go out. The train is on your left in about five minutes.
+| Path | Role |
+| --- | --- |
+| `src/App.jsx` | Phone screen, local route entry, sign-photo selection and confirmation, step confirmation, chat, speech, and optional camera preview |
+| `src/mockRoutes.js` | Station-alias and rider-described anchor resolution, conservative OCR-text-to-node matching, graph route construction/replanning, route-based answers, and explicit step progression |
+| `src/styles.css` | Phone layout and accessible screen cues |
+| `shared/times-square.json` | Times Square station graph, aliases, entrances, trips, and station-file instructions |
+| `shared/guidance.js` | Shared pathfinder and station helpers |
+| `shared/vision.js` | Station-cue catalog and strict allow-list validation for optional vision suggestions |
+| `shared/self-check.js` | Checks for graph helpers and user-facing route behavior |
+| `server/index.js` | Optional MTA inventory proxy, health/transcription endpoints, constrained `/api/vision-cue`, and older manifest APIs |
+| `src/ocr.js` | Local Tesseract browser worker and image preprocessing; imports same-origin worker/core/language assets |
+| `src/matchSign.js` | Older color-template experiment; not used for photo location matching |
 
-### Queens, the 7 train
-
-Train: 7 Train (Queens-bound). Platform 5, deep lower level.
-
-1. Walk straight west 50 meters down the transfer corridor. Purple signs. Flat floor.
-2. Turn right and walk 25 meters further west.
-3. Take the escalator down. Boarding on both sides.
-4. Same arrival line.
-
-Sign pictures still exist under `public/signs/` for a later real match. The button does not use them.
-
-## How to run
+## Run and verify
 
 ```bash
 npm install
 npm run dev
+npm run check
+npm run build
 ```
 
-Open https://localhost:5173. The certificate warning is from the local HTTPS plugin, which the phone camera needs. Accept it. `npm run dev` starts Vite on 5173 and the Express API on 8787. The current screen does not call the API. If port 8787 is already taken, that process exits and can take Vite down with it. Free the port, or run `npx vite` alone.
-
-Phone on the same Wi-Fi: use the computer’s LAN address with https and port 5173, and accept the certificate. Do not use a public tunnel for the demo. iOS will not open the camera on plain HTTP except localhost.
-
-`.env` is not in git. Copy `.env.example` to `.env` only if you turn the Grok server path back on, and put your own key there. Never commit that file.
-
-## Where the code is
-
-| Path | Role |
-| --- | --- |
-| `src/App.jsx` | Phone screen: welcome, location beat, chat, voice, map, arrow, sign button |
-| `src/mockRoutes.js` | The two walks, destination matching, and step advance |
-| `src/styles.css` | Dark phone layout. The camera video is pinned inside the top pane so it cannot resize the page |
-| `src/matchSign.js` | Unused by the button. Coarse color match against the seven sign files |
-| `public/signs/` | Sign stills. Two are the photos supplied for the demo. The others are drawn stand-ins |
-| `shared/times-square.json` | Earlier station file: entrances, signs, trips, edges. Not used by the current screen |
-| `shared/guidance.js` | Pathfinder, wheelchair stair rule, entrance guesses, arrival wording. Not used by the current screen |
-| `server/index.js` | Express routes for manifest, transcribe, landmark, arrivals. Not used by the current screen |
-| `src/ocr.js` | Tesseract helper from the earlier on-device scan. Not used by the current screen |
-
-`src/main.tsx` mounts `src/App.jsx`. Stay on Vite 7. Do not switch this app to the Figma scaffold’s Vite 8 setup.
-
-## Decisions that should stick
-
-- Phone website. Not Expo, not a store app.
-- One station for the demo: Times Square–42 St.
-- Destination is a place. The file maps the place to a train, a platform, and a path.
-- The model must not invent nodes, distances, or compass degrees. If Grok comes back, it may only rephrase a route the local file already produced.
-- Camera and microphone are separate from screen and speech. The camera stream is video only so the mic stays free.
-- Speech output uses `speechSynthesis` and should start inside the tap. Speech recognition is the browser API and is online-only.
-- Wrong-way signs, if scanning returns, should not skip a step. A downtown sign on a Bronx walk means turn around and stay put.
-- No live elevator-outage API, no GTFS protobuf, no NaviLens, no second station.
-- Do not parse the MTA GTFS-Pathways zip. It collapses Times Square’s two 1/2/3 island platforms into one northbound and one southbound.
-- Elevator wording, if step-free returns, comes from the station file: SE 42nd & 7th, and the Broadway plaza between 42nd and 43rd.
-- Nearby shops were an entrance shortcut in the earlier file: McDonald’s at 42nd and 7th, Baskin-Robbins at the Broadway plaza. The current demo does not ask which entrance. It assumes the main 42nd Street and 7th Avenue entrance.
-- Sign photos: one older Wikimedia credit is noted in `public/CREDITS.txt`. The demo stills are either supplied photos or generated stand-ins. Do not add Candy Chan drawings or Street View screenshots.
-
-## What to build next
-
-The screen is a script. The next real version would:
-
-- Match the sign pictures again, or replace that with a model that only chooses from the known sign ids.
-- Drive the walk from `shared/times-square.json` and `findPath` in `shared/guidance.js`, including a wheelchair path that skips stairs.
-- Let the rider talk about the current step without leaving the local file.
-- Show a wrong-way arrow only when a sign that is not on this walk is confirmed.
-- Add One World Center as a third scripted walk if the demo needs it. It is not in `mockRoutes.js` today.
-- Keep arrivals optional and never say the rider will miss a train. Name only the train they can catch.
-
-## Checks
-
-`npm run check` runs `shared/self-check.js` against the older station file. It does not cover the scripted screen. The scripted advance lives in `advanceStep` in `src/mockRoutes.js`.
+For desktop, open https://localhost:5173. For phone testing, use the same Wi-Fi and a short-lived self-signed TLS certificate containing the computer's LAN IP; set `SUBWAY_MATE_CERT` and `SUBWAY_MATE_KEY` before `npm run dev`. See the exact OpenSSL command in README. Then visit `https://<computer-LAN-IP>:5173` and accept the browser's certificate warning. Do not use a public tunnel for this demo or commit the generated private key. `npm run dev` also starts the existing Express server on port 8787; run `npx vite` if that server is unavailable.

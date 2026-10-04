@@ -1,5 +1,34 @@
 {
   "stationName": "Times Square-42 St",
+  "mtaReference": {
+    "retrievedOn": "2026-10-03",
+    "stationComplex": {
+      "dataset": "MTA Subway Stations and Complexes",
+      "datasetId": "5f5g-n3cz",
+      "complexId": "611",
+      "name": "Times Sq-42 St/Port Authority Bus Terminal",
+      "constituentStations": ["42 St-Port Authority Bus Terminal", "Times Sq-42 St"],
+      "stationIds": ["11", "163", "317", "467", "468"],
+      "gtfsStopIds": ["127", "725", "902", "A27", "R16"],
+      "routes": ["1", "2", "3", "7", "A", "C", "E", "N", "Q", "R", "W", "S"],
+      "source": "https://data.ny.gov/resource/5f5g-n3cz.json"
+    },
+    "stationEntrances": {
+      "dataset": "MTA Subway Entrances and Exits: 2024",
+      "datasetId": "i9wp-a4ja",
+      "source": "https://data.ny.gov/resource/i9wp-a4ja.json",
+      "complexId": "611",
+      "retrievedOn": "2026-10-04",
+      "fields": ["entrance_type", "entry_allowed", "exit_allowed", "entrance_latitude", "entrance_longitude", "gtfs_stop_id"],
+      "limitations": "This static street-entrance inventory does not describe indoor corridors or prove that an entrance sign or facility is currently present."
+    },
+    "elevatorInventory": {
+      "dataset": "MTA Subway Elevator and Escalator Asset Inventory",
+      "datasetId": "94fv-bak7",
+      "source": "https://data.ny.gov/resource/94fv-bak7.json",
+      "statusWarning": "Inventory status is not a live outage guarantee. Check the MTA before relying on an elevator."
+    }
+  },
   "aliases": {
     "step free": "enter-accessible",
     "wheelchair": "enter-accessible",
@@ -18,7 +47,71 @@
     "flushing": "queens-7",
     "7 train": "queens-7",
     "grand central": "shuttle-grand-central",
-    "shuttle": "shuttle-grand-central"
+    "shuttle": "shuttle-grand-central",
+    "uptown n q r w": "nqrw-uptown",
+    "uptown nqrw": "nqrw-uptown",
+    "northbound n q r w": "nqrw-uptown",
+    "uptown n": "nqrw-uptown",
+    "uptown q": "nqrw-uptown",
+    "uptown r": "nqrw-uptown",
+    "uptown w": "nqrw-uptown",
+    "brooklyn": "brooklyn-atlantic",
+    "atlantic av": "brooklyn-atlantic",
+    "barclays center": "brooklyn-atlantic"
+  },
+  "visualCueSources": [
+    {
+      "source": "https://commons.wikimedia.org/wiki/File:42nd-Times_Square_Services.jpg",
+      "license": "CC BY-SA 3.0",
+      "description": "The photo description identifies a sign pointing toward platforms for each service. Ask riders to read the line and direction; it does not establish a precise map location."
+    },
+    {
+      "source": "https://commons.wikimedia.org/wiki/File:Times_Sq-42nd_St_td_05.jpg",
+      "license": "CC BY-SA 4.0",
+      "nodeId": "uptown-123",
+      "description": "The photo description identifies a passageway to the Bronx-bound IRT 7th Avenue platform."
+    },
+    {
+      "source": "https://commons.wikimedia.org/wiki/File:Times_Sq-42nd_St_td_30_-_BMT_Broadway.jpg",
+      "license": "CC BY-SA 4.0",
+      "nodeId": "nqrw-uptown",
+      "description": "The photo description identifies a 42 mosaic at the uptown BMT Broadway platform. This is a rider-reported cue, not a surveyed turn-by-turn connection."
+    },
+    {
+      "source": "https://commons.wikimedia.org/wiki/File:Escalators_to_IRT_Flushing_Line_platforms_at_Times_Square_Subway.JPG",
+      "license": "CC BY-SA 3.0",
+      "nodeId": "seven-stairs",
+      "description": "The June 2013 photo caption identifies an escalator toward the IRT Flushing Line platforms. It supports the line-name cue only; it does not establish current escalator availability or distinguish the stair area from the platform."
+    },
+    {
+      "source": "https://commons.wikimedia.org/wiki/File:Times_Sq-42_St_shuttle_platforms_Sep_2021_01.jpg",
+      "license": "CC BY-SA 4.0",
+      "nodeId": "broadway-plaza-elevator",
+      "description": "The September 2021 photo caption identifies the Knickerbocker Hotel sign in the Times Square shuttle area. It is a dated clue, not a verified current sign or a complete route to the platform."
+    }
+  ],
+  "visualCueGuidance": {
+    "recognized": [
+      "green globe",
+      "1/2/3 roundel and Uptown/Bronx sign",
+      "purple 7 bullet/tile and 7 or IRT Flushing Line wording",
+      "42 mosaic",
+      "EL619",
+      "EL230",
+      "Knickerbocker Hotel sign (dated shuttle-area photo cue)",
+      "McDonald's",
+      "Baskin-Robbins"
+    ],
+    "ambiguous": [
+      {
+        "cue": "Turnstiles, fare gates, or ticket machines",
+        "guidance": "These can appear in more than one station area and are not mapped to a unique node. Ask for the nearest line/direction sign, street corner, exit name, or a specific shop."
+      },
+      {
+        "cue": "An unnamed shop or a sign with only a train number",
+        "guidance": "Ask for the shop name or the sign's direction and line markers. Do not infer which platform or station area it identifies."
+      }
+    ]
   },
   "layout": {
     "entrances": [
@@ -27,67 +120,122 @@
         "graphId": "ent-42-7",
         "nearby": ["McDonald's", "McDonalds"],
         "name": "42nd Street and Seventh Avenue",
-        "note": "From the street, go down to the upper mezzanine, then down again to the 1, 2, and 3. The southeast elevator is the step-free way."
+        "note": "EL231X connects this street entrance to the mezzanine. The station-file graph does not have a verified step-free connection from there to the platform."
       },
       {
         "id": "broadway-plaza",
         "graphId": "ent-broadway-plaza",
-        "nearby": ["Baskin-Robbins", "Baskin Robbins"],
+        "nearby": ["Baskin-Robbins", "Baskin Robbins", "Broadway plaza between 42nd and 43rd"],
         "name": "Broadway plaza between 42nd and 43rd",
-        "note": "The elevator here drops toward the shuttle. Grand Central is east. The 1, 2, and 3 are toward Seventh Avenue, not this plaza."
+        "note": "The station-file map links this plaza to the shuttle area. A platform connection and step-free access are not verified."
       },
       {
         "id": "40-7",
+        "graphId": "ent-40-7",
         "name": "40th Street and Seventh Avenue",
         "note": "Signed for the 1, 2, 3, 7, and S. Stairs go down to a mezzanine above the 1, 2, and 3 platforms."
       },
       {
         "id": "40-broadway",
+        "graphId": "ent-40-broadway",
         "name": "40th Street and Broadway",
         "note": "Signed for the N, Q, R, W, and S. This entrance does not open onto the 1, 2, and 3."
+      },
+      {
+        "id": "43-broadway",
+        "graphId": "ent-43-broadway",
+        "nearby": ["43rd Street and Broadway", "northwest corner of 43rd Street and Broadway", "EL619"],
+        "name": "43rd Street and Broadway, northwest corner",
+        "note": "MTA inventory identifies elevator EL619 here, from street to the mezzanine for all lines."
       }
     ],
     "trains": {
       "uptown-123": {
         "level": "1/2/3 platforms under Seventh Avenue",
-        "bearing": "north",
-        "approach": "From the upper mezzanine, go down the stairs. The uptown signs are on the platform after those stairs, and they face north toward the Bronx."
+        "approach": "From the upper mezzanine, use the stairs to the 1/2/3 platforms. Follow the Uptown or Bronx sign."
       },
       "downtown-123": {
         "level": "1/2/3 platforms under Seventh Avenue",
-        "bearing": "south",
-        "approach": "From the upper mezzanine, go down the stairs. The downtown signs are on the platform after those stairs, and they face south toward Brooklyn."
+        "approach": "From the upper mezzanine, use the stairs to the 1/2/3 platforms. Follow the Downtown or Brooklyn sign."
       },
       "seven-stairs": {
         "level": "7 platform, the deepest level under 41st Street",
-        "bearing": "east",
-        "approach": "On the 1, 2, 3 platform, stairs go down again. The 7 signs are after those stairs. Queens is east."
+        "approach": "The 7 platform is reached by stairs. Follow the 7, Queens, or Flushing signs."
       },
-      "seven-elevator": {
+      "seven-platform": {
         "level": "7 platform, the deepest level under 41st Street",
-        "bearing": "east",
-        "approach": "Skip the 7 stairs. Use the elevator on the southeast corner of 42nd Street and Seventh Avenue. Queens is east."
+        "approach": "The 7 platform elevator is listed out of service. Do not assume a step-free route."
       },
       "broadway-plaza-elevator": {
-        "level": "shuttle platform",
-        "bearing": "east",
-        "approach": "The shuttle signs are by the Broadway plaza elevator, above the 1, 2, 3. Grand Central is east."
+        "level": "shuttle connection (platform access unverified)",
+        "approach": "The station-file map links the Broadway plaza to the shuttle area. The platform connection is not verified."
       }
     }
   },
-  "elevators": {
-    "se42and7": "Elevator on the southeast corner of 42nd Street and 7th Avenue. It is in service for this demo.",
-    "broadwayPlaza": "Elevator on the Broadway plaza between 42nd and 43rd Streets. It is in service for this demo."
-  },
+  "elevatorAssets": [
+    {
+      "equipmentCode": "EL619",
+      "stationName": "TIMESSQ-42ST-BWY-N/R/Q",
+      "serviceStatusCode": "IFIS",
+      "serviceStatus": "Installed-Functioning-In Service",
+      "connects": ["43rd Street and Broadway, northwest corner", "station mezzanine"],
+      "lines": ["N", "Q", "R", "W"],
+      "notes": "Street to mezzanine; MTA inventory says it serves both directions for all lines."
+    },
+    {
+      "equipmentCode": "EL231X",
+      "stationName": "TIMESSQ-42ST-7AV-1/2/3",
+      "serviceStatusCode": "IFIS",
+      "serviceStatus": "Installed-Functioning-In Service",
+      "connects": ["42nd Street and Seventh Avenue, southeast corner", "station mezzanine"],
+      "lines": ["1", "2", "3", "7", "S", "N", "Q", "R", "W"]
+    },
+    {
+      "equipmentCode": "EL230",
+      "stationName": "TIMESSQ-42ST-BWY-N/R/Q",
+      "serviceStatusCode": "IFIS",
+      "serviceStatus": "Installed-Functioning-In Service",
+      "connects": ["station mezzanine", "uptown N/Q/R/W platform"],
+      "lines": ["N", "Q", "R", "W"],
+      "notes": "MTA inventory explicitly identifies this as the mezzanine-to-uptown N/Q/R/W platform elevator."
+    },
+    {
+      "equipmentCode": "EL229",
+      "stationName": "TIMESSQ-42ST-BWY-N/R/Q",
+      "serviceStatusCode": "RNOS",
+      "serviceStatus": "Removed-Non Functioning-Out of Service",
+      "connects": ["station mezzanine", "downtown N/Q/R/W platform"],
+      "lines": ["N", "Q", "R", "W"]
+    },
+    {
+      "equipmentCode": "EL233",
+      "stationName": "TIMESSQ-42ST-7AV-1/2/3",
+      "serviceStatusCode": "RNOS",
+      "serviceStatus": "Removed-Non Functioning-Out of Service",
+      "connects": ["upper mezzanine", "northbound 1/2/3 platform"],
+      "lines": ["1", "2", "3"]
+    },
+    {
+      "equipmentCode": "EL232",
+      "stationName": "TIMESSQ-42ST-7AV-1/2/3",
+      "serviceStatusCode": "RNOS",
+      "serviceStatus": "Removed-Non Functioning-Out of Service",
+      "connects": ["upper mezzanine", "downtown 1/2/3 platform", "lower mezzanine", "7 platform"],
+      "lines": ["1", "2", "3", "7"]
+    }
+  ],
   "nodes": [
     {
       "id": "uptown-123",
       "name": "Uptown 1/2/3",
       "level": "1/2/3 platforms under Seventh Avenue",
-      "bearing": "north",
+      "lineMarkers": ["1", "2", "3"],
       "expectedText": ["uptown", "bronx"],
-      "landmarks": ["roundel", "green globe"],
-      "accessible": true,
+      "observationAliases": ["uptown 1 2 3 sign", "bronx bound 1 2 3 sign", "red 1 2 3 roundel"],
+      "landmarks": ["roundel", "green globe", "passageway to the Bronx-bound IRT 7th Avenue platform"],
+      "photoCueText": ["green globe"],
+      "visualCues": ["Green globe", "Roundel marked Uptown or Bronx and 1/2/3"],
+      "accessible": false,
       "minutesToPlatform": 3,
       "follow": "Follow this sign. This is the uptown 1, 2, or 3 toward the Bronx.",
       "reject": "Turn around. This is the uptown train toward the Bronx.",
@@ -102,10 +250,12 @@
       "id": "downtown-123",
       "name": "Downtown 1/2/3",
       "level": "1/2/3 platforms under Seventh Avenue",
-      "bearing": "south",
+      "lineMarkers": ["1", "2", "3"],
       "expectedText": ["downtown", "brooklyn"],
+      "observationAliases": ["downtown 1 2 3 sign", "brooklyn bound 1 2 3 sign"],
       "landmarks": ["roundel"],
-      "accessible": true,
+      "visualCues": ["Roundel marked Downtown or Brooklyn and 1/2/3"],
+      "accessible": false,
       "minutesToPlatform": 2,
       "follow": "Follow this sign. This is the downtown 1, 2, or 3 toward Brooklyn.",
       "reject": "Turn around. This is the downtown train toward Brooklyn.",
@@ -120,14 +270,16 @@
       "id": "seven-stairs",
       "name": "7 train stairs",
       "level": "7 platform, the deepest level under 41st Street",
-      "bearing": "east",
+      "lineMarkers": ["7"],
       "expectedText": ["7", "flushing", "queens", "stairs"],
+      "observationAliases": ["stairs to the 7", "7 stairway", "purple 7 bullet at the stairs", "IRT Flushing Line"],
       "landmarks": ["purple tile", "7 bullet"],
+      "photoCueText": ["purple 7 bullet", "purple 7 tile", "IRT Flushing Line"],
+      "visualCues": ["Purple tile or 7 bullet", "Look for 7, Queens, or Flushing on the sign; the 7 is also called the IRT Flushing Line", "Stairs (not step-free)"],
       "accessible": false,
       "minutesToPlatform": 6,
       "follow": "These stairs go toward the 7. Follow them only if you can use stairs.",
       "reject": "Do not follow these stairs.",
-      "accessibleInstruction": "Do not follow these stairs. Use the elevator on the southeast corner of 42nd Street and 7th Avenue for a step-free way toward the 7.",
       "turns": {
         "straight": "The 7 stair sign is ahead. If you need an elevator, do not go down it.",
         "behind": "The 7 stair sign is behind you.",
@@ -136,39 +288,43 @@
       }
     },
     {
-      "id": "seven-elevator",
-      "name": "Elevator toward the 7",
+      "id": "seven-platform",
+      "name": "7 platform",
       "level": "7 platform, the deepest level under 41st Street",
-      "bearing": "east",
-      "expectedText": ["elevator", "7th"],
-      "landmarks": ["elevator doors", "blue accessible sign"],
-      "accessible": true,
-      "minutesToPlatform": 4,
-      "follow": "Use the elevator on the southeast corner of 42nd Street and 7th Avenue. It is the step-free way toward the 7.",
-      "reject": "This elevator is not the way for the train you want.",
+      "lineMarkers": ["7"],
+      "expectedText": ["7 platform", "flushing", "queens"],
+      "observationAliases": ["on the 7 platform", "7 platform sign", "IRT Flushing Line"],
+      "landmarks": ["purple tile", "7 bullet"],
+      "photoCueText": ["purple 7 bullet", "purple 7 tile", "IRT Flushing Line"],
+      "visualCues": ["Purple tile or 7 bullet", "Confirm the sign says 7, Queens, or Flushing before boarding", "MTA inventory lists the 7 platform elevator EL232 out of service"],
+      "accessible": false,
+      "follow": "You are at the 7 platform. Check the train's line and direction before boarding.",
+      "reject": "This is not the 7 platform.",
       "turns": {
-        "straight": "Continue toward the elevator on the southeast corner of 42nd Street and 7th Avenue.",
-        "behind": "The elevator entrance is behind you.",
-        "left": "Turn left and look for the elevator on the southeast corner of 42nd and 7th.",
-        "right": "Turn right and look for the elevator on the southeast corner of 42nd and 7th."
+        "straight": "Check the 7 platform sign.",
+        "behind": "Check the 7 platform sign.",
+        "left": "Check the 7 platform sign.",
+        "right": "Check the 7 platform sign."
       }
     },
     {
       "id": "broadway-plaza-elevator",
-      "name": "Broadway plaza elevator",
-      "level": "shuttle platform",
-      "bearing": "east",
+      "name": "Broadway plaza shuttle connection",
+      "level": "shuttle connection (platform access unverified)",
       "expectedText": ["broadway", "plaza"],
-      "landmarks": ["plaza", "glass canopy"],
-      "accessible": true,
+      "observationAliases": ["Knickerbocker Hotel sign"],
+      "landmarks": ["plaza", "Knickerbocker Hotel sign"],
+      "photoCueText": ["Knickerbocker Hotel"],
+      "visualCues": ["Broadway plaza", "A 2021 photo caption shows a Knickerbocker Hotel sign in the shuttle area; confirm it is still there", "Shuttle platform access is not verified in this map"],
+      "accessible": false,
       "minutesToPlatform": 5,
-      "follow": "This is the elevator on the Broadway plaza between 42nd and 43rd Streets.",
-      "reject": "The Broadway plaza elevator is not your next step.",
+      "follow": "This is the Broadway plaza shuttle connection in the station file. Follow official Grand Central shuttle signs; this map does not verify platform access.",
+      "reject": "The Broadway plaza shuttle connection is not your next step.",
       "turns": {
-        "straight": "The Broadway plaza elevator is the way you are facing.",
-        "behind": "The Broadway plaza elevator is behind you.",
-        "left": "Turn left toward the Broadway plaza elevator.",
-        "right": "Turn right toward the Broadway plaza elevator."
+        "straight": "Follow official Grand Central shuttle signs.",
+        "behind": "Follow official Grand Central shuttle signs.",
+        "left": "Follow official Grand Central shuttle signs.",
+        "right": "Follow official Grand Central shuttle signs."
       }
     },
     {
@@ -176,7 +332,9 @@
       "name": "42nd Street and Seventh Avenue",
       "level": "street",
       "expectedText": [],
+      "observationAliases": ["42nd Street and Seventh Avenue entrance", "McDonald's entrance"],
       "landmarks": [],
+      "visualCues": ["42nd Street and Seventh Avenue street entrance", "McDonald's nearby"],
       "accessible": true,
       "follow": "You are at 42nd Street and Seventh Avenue.",
       "reject": "This entrance is not your next step."
@@ -186,7 +344,9 @@
       "name": "Upper mezzanine",
       "level": "upper-mezzanine",
       "expectedText": [],
+      "observationAliases": ["upper mezzanine"],
       "landmarks": [],
+      "visualCues": ["Upper mezzanine beneath 42nd Street"],
       "accessible": true,
       "follow": "You are on the upper mezzanine under 42nd Street.",
       "reject": "This mezzanine is not your next step."
@@ -197,6 +357,7 @@
       "level": "street",
       "expectedText": [],
       "landmarks": [],
+      "visualCues": ["40th Street and Seventh Avenue entrance"],
       "accessible": true,
       "follow": "This entrance is signed for the 1, 2, 3, 7, and S.",
       "reject": "This entrance is not your next step."
@@ -207,6 +368,7 @@
       "level": "street",
       "expectedText": [],
       "landmarks": [],
+      "visualCues": ["40th Street and Broadway entrance"],
       "accessible": true,
       "follow": "This entrance is the N, Q, R, W, and S side, not the 1, 2, and 3 side.",
       "reject": "This entrance is not your next step."
@@ -216,9 +378,11 @@
       "name": "Broadway plaza between 42nd and 43rd",
       "level": "street",
       "expectedText": [],
+      "observationAliases": ["Baskin-Robbins", "Broadway plaza"],
       "landmarks": [],
+      "visualCues": ["Broadway plaza between 42nd and 43rd Streets", "Baskin-Robbins nearby"],
       "accessible": true,
-      "follow": "You are at the Broadway plaza. The shuttle elevator is here. Grand Central is east.",
+      "follow": "You are at the Broadway plaza. The station-file map links this area to the shuttle; verify platform access using official station signs.",
       "reject": "This entrance is not your next step."
     },
     {
@@ -226,17 +390,57 @@
       "name": "Lower mezzanine",
       "level": "lower-mezzanine",
       "expectedText": [],
+      "observationAliases": ["lower mezzanine"],
       "landmarks": [],
-      "accessible": true,
+      "accessible": false,
       "follow": "You are on the lower mezzanine, above the 7.",
       "reject": "This mezzanine is not your next step."
+    },
+    {
+      "id": "ent-43-broadway",
+      "name": "43rd Street and Broadway, northwest corner",
+      "level": "street",
+      "expectedText": ["43rd street", "broadway", "elevator"],
+      "observationAliases": ["43rd and Broadway northwest corner", "EL619 elevator"],
+      "landmarks": ["EL619", "northwest corner of 43rd Street and Broadway"],
+      "visualCues": ["MTA-listed elevator EL619 at the northwest corner of 43rd Street and Broadway"],
+      "accessible": true,
+      "follow": "You are at the northwest-corner elevator at 43rd Street and Broadway.",
+      "reject": "This is not the elevator entrance listed for this route."
+    },
+    {
+      "id": "nqrw-mezz",
+      "name": "N/Q/R/W mezzanine",
+      "level": "station mezzanine",
+      "expectedText": ["N", "Q", "R", "W"],
+      "observationAliases": ["N Q R W mezzanine", "EL230 mezzanine elevator"],
+      "landmarks": ["EL230 elevator"],
+      "photoCueText": ["EL230"],
+      "visualCues": ["Elevator EL230 is listed between this mezzanine and the uptown N/Q/R/W platform"],
+      "accessible": true,
+      "follow": "Look for elevator EL230 and verify the N/Q/R/W platform signs.",
+      "reject": "This is not the N/Q/R/W mezzanine."
+    },
+    {
+      "id": "nqrw-uptown",
+      "name": "Uptown N/Q/R/W platform",
+      "level": "uptown N/Q/R/W platform",
+      "lineMarkers": ["N", "Q", "R", "W"],
+      "expectedText": ["uptown", "northbound"],
+      "observationAliases": ["uptown N Q R W platform", "42 mosaic"],
+      "landmarks": ["EL230", "42 mosaic", "42 mosaic tile"],
+      "photoCueText": ["42 mosaic", "EL230"],
+      "visualCues": ["Uptown N/Q/R/W platform served by elevator EL230"],
+      "accessible": true,
+      "follow": "You are at the uptown N/Q/R/W platform. Check the train's letter and direction before boarding.",
+      "reject": "This is not the uptown N/Q/R/W platform."
     }
   ],
   "trips": [
     {
       "id": "downtown-123",
       "tripId": "downtown-123",
-      "aliases": ["One World Trade Center", "World Trade Center", "WTC", "Cortlandt", "Downtown", "Brooklyn"],
+      "aliases": ["One World Trade Center", "World Trade Center", "WTC", "Cortlandt", "Downtown"],
       "title": "Downtown 1, 2, or 3 toward Brooklyn",
       "summary": "Ride the downtown 1, 2, or 3. A correct sign says Downtown or Brooklyn. An uptown or Bronx sign is the wrong side.",
       "arrival": {
@@ -248,7 +452,34 @@
       "minutesToPlatform": 3,
       "stepIds": ["uptown-123", "downtown-123"],
       "fromMezzanine": ["mez-upper", "downtown-123"],
-      "correctNodeId": "downtown-123"
+      "correctNodeId": "downtown-123",
+      "boardingInstruction": "You are at the downtown 1/2/3 platform. Board only a Downtown or Brooklyn-bound train."
+    },
+    {
+      "id": "brooklyn-atlantic",
+      "tripId": "brooklyn-atlantic",
+      "aliases": ["Atlantic Av–Barclays Center", "Atlantic Av-Barclays Center", "Atlantic Avenue", "Barclays Center", "Brooklyn"],
+      "title": "Atlantic Av–Barclays Center, Brooklyn",
+      "summary": "From Times Square, go to the downtown 1/2/3 platform. Board only a 2 or 3 signed for Brooklyn and Atlantic Av–Barclays Center. Do not board a 1 for this destination; check the train sign because service can vary.",
+      "arrival": {
+        "stationId": "127",
+        "lines": ["2", "3"],
+        "direction": "S",
+        "label": "downtown 2 or 3"
+      },
+      "destinationStop": {
+        "complexId": "617",
+        "gtfsStopId": "235",
+        "stationName": "Atlantic Av-Barclays Ctr",
+        "borough": "Brooklyn",
+        "routes": ["2", "3", "4", "5", "B", "D", "N", "Q", "R"],
+        "source": "https://data.ny.gov/resource/5f5g-n3cz.json"
+      },
+      "minutesToPlatform": 3,
+      "stepIds": ["downtown-123"],
+      "fromMezzanine": ["mez-upper", "downtown-123"],
+      "correctNodeId": "downtown-123",
+      "boardingInstruction": "You are at the downtown 1/2/3 platform. For Atlantic Av–Barclays Center, board only a 2 or 3 signed for Brooklyn. Do not board a 1."
     },
     {
       "id": "uptown-123",
@@ -265,14 +496,15 @@
       "minutesToPlatform": 3,
       "stepIds": ["downtown-123", "uptown-123"],
       "fromMezzanine": ["mez-upper", "uptown-123"],
-      "correctNodeId": "uptown-123"
+      "correctNodeId": "uptown-123",
+      "boardingInstruction": "You're at the uptown 1/2/3 platform. Before boarding, check the sign says Uptown or Bronx and 1, 2, or 3."
     },
     {
       "id": "queens-7",
       "tripId": "queens-7",
       "aliases": ["Queens", "Flushing", "7 train"],
       "title": "7 toward Queens",
-      "summary": "The 7 toward Queens sits deeper in the station. Stairs are marked. The step-free way is the elevator on the southeast corner of 42nd Street and 7th Avenue.",
+      "summary": "The mapped route to the 7 uses stairs. The MTA elevator inventory lists the 7 platform elevator as out of service; this demo cannot provide a step-free route to the 7.",
       "arrival": {
         "stationId": "725",
         "lines": ["7"],
@@ -280,16 +512,17 @@
         "label": "7 toward Queens"
       },
       "minutesToPlatform": 4,
-      "stepIds": ["seven-stairs", "seven-elevator"],
-      "fromMezzanine": ["mez-upper", "uptown-123", "seven-stairs", "seven-elevator"],
-      "correctNodeId": "seven-elevator"
+      "stepIds": ["seven-stairs", "seven-platform"],
+      "fromMezzanine": ["mez-upper", "uptown-123", "seven-stairs", "seven-platform"],
+      "correctNodeId": "seven-platform",
+      "boardingInstruction": "You're at the 7 platform. Before boarding, check the sign says 7 and Queens or Flushing."
     },
     {
       "id": "shuttle-grand-central",
       "tripId": "shuttle-grand-central",
       "aliases": ["Grand Central", "Shuttle"],
       "title": "Shuttle toward Grand Central",
-      "summary": "The 42nd Street shuttle runs between Times Square and Grand Central. Start from the Broadway plaza elevator if you need a step-free entrance.",
+      "summary": "The station-file map links the Broadway plaza to the shuttle area, but this demo does not have verified indoor pathway or step-free access data for the platform.",
       "arrival": {
         "stationId": "902",
         "lines": ["GS", "S"],
@@ -299,14 +532,29 @@
       "minutesToPlatform": 4,
       "stepIds": ["broadway-plaza-elevator", "downtown-123"],
       "fromMezzanine": ["mez-upper", "broadway-plaza-elevator"],
-      "correctNodeId": "broadway-plaza-elevator"
+      "correctNodeId": "broadway-plaza-elevator",
+      "boardingInstruction": "The map does not verify the shuttle platform connection. Follow official Grand Central shuttle signs or ask station staff."
+    },
+    {
+      "id": "nqrw-uptown",
+      "tripId": "nqrw-uptown",
+      "aliases": ["uptown n q r w", "uptown nqrw", "northbound n q r w", "uptown n", "uptown q", "uptown r", "uptown w", "n train uptown", "q train uptown", "r train uptown", "w train uptown"],
+      "title": "Uptown N/Q/R/W",
+      "summary": "From the 43rd Street and Broadway northwest-corner elevator, take the mezzanine elevator marked EL230 to the uptown N/Q/R/W platform. Verify the letter on the train sign before boarding.",
+      "arrival": { "stationId": "R16", "lines": ["N", "Q", "R", "W"], "direction": "N", "label": "uptown N/Q/R/W" },
+      "minutesToPlatform": null,
+      "stepIds": ["nqrw-uptown"],
+      "fromMezzanine": ["nqrw-mezz", "nqrw-uptown"],
+      "correctNodeId": "nqrw-uptown",
+      "startNodeId": "ent-43-broadway",
+      "boardingInstruction": "You are at the uptown N/Q/R/W platform. Board only the letter and direction you need."
     },
     {
       "id": "enter-accessible",
       "tripId": "enter-accessible",
       "aliases": ["step-free", "wheelchair"],
       "title": "Step-free entrance, then downtown 1, 2, or 3",
-      "summary": "Enter at the elevator on the southeast corner of 42nd Street and 7th Avenue, or the elevator on the Broadway plaza between 42nd and 43rd Streets. Then follow a Downtown and Brooklyn sign.",
+      "summary": "A step-free route is available only where the local station graph has a verified, functioning elevator path. This destination is not currently supported step-free.",
       "arrival": {
         "stationId": "127",
         "lines": ["1", "2", "3"],
@@ -314,31 +562,27 @@
         "label": "downtown 1, 2, or 3"
       },
       "minutesToPlatform": 5,
-      "stepIds": ["seven-elevator", "broadway-plaza-elevator", "uptown-123", "downtown-123"],
+      "stepIds": ["seven-platform", "broadway-plaza-elevator", "uptown-123", "downtown-123"],
       "fromMezzanine": ["mez-upper", "downtown-123"],
       "correctNodeId": "downtown-123"
     }
   ],
   "edges": [
-    { "from": "ent-40-7", "to": "mez-upper", "type": "stairs", "weight": 2, "instruction": "Go down from 40th and Seventh to the mezzanine above the 1, 2, and 3." },
-    { "from": "ent-40-7", "to": "mez-upper", "type": "elevator", "weight": 3, "instruction": "Take the elevator down from 40th and Seventh toward the 1, 2, and 3." },
-    { "from": "ent-40-broadway", "to": "mez-upper", "type": "walk", "weight": 3, "instruction": "This door is the N, Q, R, W, and S side. Walk toward Seventh Avenue for the 1, 2, and 3." },
-    { "from": "ent-broadway-plaza", "to": "broadway-plaza-elevator", "type": "elevator", "weight": 2, "instruction": "Take the Broadway plaza elevator. The shuttle toward Grand Central faces east." },
-    { "from": "ent-broadway-plaza", "to": "mez-upper", "type": "walk", "weight": 2, "instruction": "Walk from the Broadway plaza toward the upper mezzanine and Seventh Avenue." },
-    { "from": "ent-42-7", "to": "mez-upper", "type": "stairs", "weight": 2, "instruction": "Go down the stairs to the upper mezzanine under 42nd Street." },
-    { "from": "ent-42-7", "to": "mez-upper", "type": "elevator", "weight": 3, "instruction": "Take the elevator on the southeast corner of 42nd Street and 7th Avenue down to the upper mezzanine." },
-    { "from": "mez-upper", "to": "uptown-123", "type": "stairs", "weight": 2, "instruction": "Go down to the 1, 2, and 3. The uptown signs are on the platform after those stairs, and they face north." },
-    { "from": "mez-upper", "to": "uptown-123", "type": "elevator", "weight": 3, "instruction": "Take the elevator down to the 1, 2, and 3. The uptown signs face north, toward the Bronx." },
-    { "from": "mez-upper", "to": "downtown-123", "type": "stairs", "weight": 2, "instruction": "Go down to the 1, 2, and 3. The downtown signs are on the platform after those stairs, and they face south." },
-    { "from": "mez-upper", "to": "downtown-123", "type": "elevator", "weight": 3, "instruction": "Take the elevator down to the 1, 2, and 3. The downtown signs face south, toward Brooklyn." },
-    { "from": "uptown-123", "to": "seven-stairs", "type": "stairs", "weight": 2, "instruction": "These stairs go down to the 7. The Queens signs are after the stairs, and they face east." },
-    { "from": "downtown-123", "to": "seven-stairs", "type": "stairs", "weight": 2, "instruction": "These stairs go down to the 7. The Queens signs are after the stairs, and they face east." },
-    { "from": "seven-stairs", "to": "seven-elevator", "type": "walk", "weight": 1, "instruction": "The 7 platform is ahead. Queens and Flushing are east." },
-    { "from": "uptown-123", "to": "seven-elevator", "type": "elevator", "weight": 3, "instruction": "Skip the 7 stairs. Use the elevator on the southeast corner of 42nd Street and 7th Avenue. Queens is east." },
-    { "from": "downtown-123", "to": "seven-elevator", "type": "elevator", "weight": 3, "instruction": "Skip the 7 stairs. Use the elevator on the southeast corner of 42nd Street and 7th Avenue. Queens is east." },
-    { "from": "mez-upper", "to": "broadway-plaza-elevator", "type": "walk", "weight": 2, "instruction": "Walk toward the Broadway plaza elevator. The shuttle to Grand Central faces east." },
-    { "from": "mez-upper", "to": "broadway-plaza-elevator", "type": "elevator", "weight": 3, "instruction": "Take the elevator on the Broadway plaza between 42nd and 43rd Streets. The shuttle faces east, toward Grand Central." },
-    { "from": "uptown-123", "to": "lower-mezzanine", "type": "stairs", "weight": 2, "instruction": "Stairs go down from the 1, 2, 3 platform to the lower mezzanine." },
-    { "from": "downtown-123", "to": "lower-mezzanine", "type": "stairs", "weight": 2, "instruction": "Stairs go down from the 1, 2, 3 platform to the lower mezzanine." }
+    { "from": "ent-43-broadway", "to": "nqrw-mezz", "type": "elevator", "equipmentCode": "EL619", "weight": 2, "instruction": "Take elevator EL619 from the northwest corner of 43rd Street and Broadway to the mezzanine.", "reverseInstruction": "Take elevator EL619 from the mezzanine to the northwest corner of 43rd Street and Broadway." },
+    { "from": "nqrw-mezz", "to": "nqrw-uptown", "type": "elevator", "equipmentCode": "EL230", "weight": 2, "instruction": "On the mezzanine, take elevator EL230 to the uptown N/Q/R/W platform. Check the platform sign before boarding.", "reverseInstruction": "Take elevator EL230 from the uptown N/Q/R/W platform to the mezzanine." },
+    { "from": "ent-40-7", "to": "mez-upper", "type": "stairs", "weight": 2, "instruction": "Go down from 40th Street and Seventh Avenue to the mezzanine above the 1/2/3 platforms.", "reverseInstruction": "Go up the stairs from the upper mezzanine to 40th Street and Seventh Avenue." },
+    { "from": "ent-40-broadway", "to": "mez-upper", "type": "walk", "weight": 3, "instruction": "This door is the N, Q, R, W, and S side. Walk toward Seventh Avenue for the 1, 2, and 3.", "reverseInstruction": "From the upper mezzanine, follow the N, Q, R, W, and S signs toward the 40th Street and Broadway entrance." },
+    { "from": "ent-broadway-plaza", "to": "broadway-plaza-elevator", "type": "walk", "weight": 2, "instruction": "Walk from the Broadway plaza toward the shuttle connection. Platform access is not verified in this map.", "reverseInstruction": "Return from the shuttle connection toward the Broadway plaza." },
+    { "from": "ent-broadway-plaza", "to": "mez-upper", "type": "walk", "weight": 2, "instruction": "Walk from the Broadway plaza toward the upper mezzanine and Seventh Avenue.", "reverseInstruction": "Walk from the upper mezzanine back toward the Broadway plaza." },
+    { "from": "ent-42-7", "to": "mez-upper", "type": "stairs", "weight": 2, "instruction": "Go down the stairs to the upper mezzanine under 42nd Street.", "reverseInstruction": "Go up the stairs from the upper mezzanine to the 42nd Street and Seventh Avenue entrance." },
+    { "from": "ent-42-7", "to": "mez-upper", "type": "elevator", "equipmentCode": "EL231X", "weight": 3, "instruction": "Take elevator EL231X on the southeast corner of 42nd Street and Seventh Avenue to the mezzanine.", "reverseInstruction": "Take elevator EL231X from the mezzanine to the southeast corner of 42nd Street and Seventh Avenue." },
+    { "from": "mez-upper", "to": "uptown-123", "type": "stairs", "weight": 2, "instruction": "Use the stairs to the 1/2/3 platforms. Follow the Uptown or Bronx sign.", "reverseInstruction": "Go up the stairs from the uptown 1/2/3 platform to the upper mezzanine." },
+    { "from": "mez-upper", "to": "downtown-123", "type": "stairs", "weight": 2, "instruction": "Use the stairs to the 1/2/3 platforms. Follow the Downtown or Brooklyn sign.", "reverseInstruction": "Go up the stairs from the downtown 1/2/3 platform to the upper mezzanine." },
+    { "from": "uptown-123", "to": "seven-stairs", "type": "stairs", "weight": 2, "instruction": "Go down the stairs marked 7.", "reverseInstruction": "Go up the stairs from the 7-level sign area to the uptown 1/2/3 platform." },
+    { "from": "downtown-123", "to": "seven-stairs", "type": "stairs", "weight": 2, "instruction": "Go down the stairs marked 7.", "reverseInstruction": "Go up the stairs from the 7-level sign area to the downtown 1/2/3 platform." },
+    { "from": "seven-stairs", "to": "seven-platform", "type": "walk", "weight": 1, "instruction": "Follow the 7 signs to the platform. Before boarding, check the sign says 7 and Queens or Flushing.", "reverseInstruction": "Follow the 7 signs from the platform back to the 1/2/3 stairway landing." },
+    { "from": "mez-upper", "to": "broadway-plaza-elevator", "type": "walk", "weight": 2, "instruction": "Walk toward the Broadway plaza and follow official Grand Central shuttle signs. Platform access is not verified in this map.", "reverseInstruction": "Return from the Broadway plaza shuttle connection to the upper mezzanine." },
+    { "from": "uptown-123", "to": "lower-mezzanine", "type": "stairs", "weight": 2, "instruction": "Go down the stairs from the uptown 1/2/3 platform to the lower mezzanine.", "reverseInstruction": "Go up the stairs from the lower mezzanine to the uptown 1/2/3 platform." },
+    { "from": "downtown-123", "to": "lower-mezzanine", "type": "stairs", "weight": 2, "instruction": "Go down the stairs from the downtown 1/2/3 platform to the lower mezzanine.", "reverseInstruction": "Go up the stairs from the lower mezzanine to the downtown 1/2/3 platform." }
   ]
 }

@@ -70,7 +70,25 @@ export function buildLocalManifest(station, tripId, profile) {
 
 export function findPath(station, startId, endId, options = {}) {
   const stepFree = Boolean(options.stepFree);
-  const edges = (station.edges || []).filter((edge) => !(stepFree && edge.type === "stairs"));
+  const unavailableEquipment = new Set(options.unavailableEquipment || []);
+  const edges = (station.edges || [])
+    .filter((edge) =>
+      !(stepFree && edge.type === "stairs")
+        && !(edge.equipmentCode && unavailableEquipment.has(edge.equipmentCode)),
+    )
+    .flatMap((edge) => [
+      edge,
+      ...(edge.reverseInstruction
+        ? [{
+            ...edge,
+            from: edge.to,
+            to: edge.from,
+            instruction: edge.reverseInstruction,
+            reverseInstruction: edge.instruction,
+            reversed: true,
+          }]
+        : []),
+    ]);
   const nodeIds = new Set((station.nodes || []).map((node) => node.id));
   for (const edge of edges) {
     nodeIds.add(edge.from);
@@ -111,8 +129,30 @@ export function findPath(station, startId, endId, options = {}) {
 export function applyRoute(station, manifest, startId = "ent-42-7") {
   const signs = manifest.steps;
   const stepFree = manifest.profile === "wheelchair" || manifest.tripId === "enter-accessible";
-  const route = findPath(station, startId, manifest.destinationKey, { stepFree });
-  if (!route.length) return { ...manifest, signs, routeStart: startId };
+  const start = nodeById(station, startId);
+  const destination = nodeById(station, manifest.destinationKey);
+  if (stepFree && (start?.accessible === false || destination?.accessible === false)) {
+    return {
+      ...manifest,
+      signs,
+      steps: [],
+      routeStart: startId,
+      routingError: "No verified step-free route is available from this start to the selected platform.",
+    };
+  }
+  const unavailableEquipment = (station.elevatorAssets || [])
+    .filter((asset) => asset.serviceStatusCode !== "IFIS")
+    .map((asset) => asset.equipmentCode);
+  const route = findPath(station, startId, manifest.destinationKey, { stepFree, unavailableEquipment });
+  if (!route.length) {
+    return {
+      ...manifest,
+      signs,
+      steps: [],
+      routeStart: startId,
+      ...(stepFree ? { routingError: "No verified step-free route is available from this start to the selected platform." } : {}),
+    };
+  }
   const steps = route.map((edge) => {
     const node = nodeById(station, edge.to) || {};
     return {
@@ -277,11 +317,12 @@ export function relativeTurn(facing, target) {
 
 export function trainHeading(tripId) {
   return {
-    "uptown-123": "1 2 3 uptown, north platform",
-    "downtown-123": "1 2 3 downtown, south platform",
-    "queens-7": "7 toward Queens, east platform",
-    "shuttle-grand-central": "S toward Grand Central, east",
-    "enter-accessible": "1 2 3 downtown, by elevator",
+    "uptown-123": "1/2/3 Uptown",
+    "downtown-123": "1/2/3 Downtown",
+    "queens-7": "7 toward Queens",
+    "shuttle-grand-central": "Shuttle toward Grand Central",
+    "nqrw-uptown": "Uptown N/Q/R/W",
+    "enter-accessible": "1/2/3 Downtown",
   }[tripId] || "Your train";
 }
 
@@ -299,25 +340,17 @@ export function shortRide(station, tripId, entranceId) {
   return `Take ${ride}. Start at ${from}.`;
 }
 
-export function localGuide({ station, tripId, facing, entranceId }) {
+export function localGuide({ station, tripId, entranceId }) {
   const trip = tripById(station, tripId);
   const train = station.layout?.trains?.[trip?.correctNodeId];
   const entrance = station.layout?.entrances?.find((item) => item.id === entranceId);
-  const target = train?.bearing || "north";
   const approach = train?.approach || trip?.summary || "Follow the signs for your train.";
   const from = entrance ? `From ${entrance.name}. ${entrance.note}` : "From the upper mezzanine under 42nd Street.";
-  const turn = relativeTurn(facing, target);
-  let text = `${from} ${approach}`;
-  if (!facing) {
-    text += " Which way are you facing: north, east, south, or west?";
-  } else if (turn === "straight") {
-    text += ` You are already facing ${target}. Walk that way.`;
-  } else if (turn === "around") {
-    text += ` You are facing ${facing}. Turn around so you face ${target}.`;
-  } else if (turn) {
-    text += ` You are facing ${facing}. Turn ${turn} so you face ${target}.`;
-  }
-  return { text, compass: target };
+  const destination = trip?.title || "your train";
+  return {
+    text: `${from} ${approach} Check the ${destination} line and direction sign before boarding.`,
+    compass: null,
+  };
 }
 
 export function deliverPlan(output) {
