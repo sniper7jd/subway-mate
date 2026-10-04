@@ -1,70 +1,42 @@
-export const OPENING =
-  "You entered the 42nd Street–Times Square station. Where do you want to go?";
+export const ENTRANCE_LINE =
+  "42 St / 7 Av. Times Square, Broadway entrance. Where do you want to go?";
+
+export const OPENING = ENTRANCE_LINE;
 
 export const ONLY_DEMO = "This demo only walks to the Bronx or Queens.";
 
 export const ARRIVAL_LINE =
   "Go out. Your train is coming on the left in about 5 minutes. Press End when you are done.";
 
-export const routeBronx = {
+const demoBeats = [
+  { id: "right", onMap: true, instruction: "Go right.", subtext: "", cue: "GO RIGHT", distance: "", heading: "East", tone: "forward" },
+  { id: "stairs", onMap: true, instruction: "Go down the stairs.", subtext: "", cue: "GO DOWN", distance: "", heading: "South", tone: "forward" },
+  { id: "wrong", onMap: false, instruction: "You're on the wrong way. Go back 20 meters.", subtext: "", cue: "BACK 20m", distance: "20m", heading: "North", tone: "back" },
+  { id: "left", onMap: true, instruction: "Go left.", subtext: "", cue: "GO LEFT", distance: "", heading: "West", tone: "forward" },
+  { id: "down", onMap: true, instruction: "Go down.", subtext: "Your train should be on the left.", cue: "GO DOWN", distance: "", heading: "South", tone: "forward", arrive: true },
+];
+
+function withBeats(route) {
+  const beats = demoBeats.map((beat) => ({ ...beat }));
+  return {
+    ...route,
+    totalCheckpoints: beats.filter((beat) => beat.onMap).length,
+    beats,
+    steps: beats.filter((beat) => beat.onMap),
+  };
+}
+
+export const routeBronx = withBeats({
   destination: "The Bronx / Van Cortlandt Park",
   trainLine: "1 Train (Uptown & The Bronx)",
   platform: "Platform 2 - Upper Level",
-  totalCheckpoints: 3,
-  steps: [
-    {
-      id: 1,
-      instruction: "Walk straight North for 30 meters through the main turnstiles.",
-      subtext: "Keep the station booth on your right.",
-      distance: "30m",
-      heading: "North",
-    },
-    {
-      id: 2,
-      instruction: "Turn right. Walk 15 meters toward the red circular 1 signs.",
-      subtext: "You are in the main mezzanine corridor.",
-      distance: "15m",
-      heading: "East",
-    },
-    {
-      id: 3,
-      instruction: "Turn left and head down the stairs to the platform.",
-      subtext: "Handrail is on the right side. Platform is 20 steps down.",
-      distance: "10m",
-      heading: "North",
-    },
-  ],
-};
+});
 
-export const routeQueens = {
+export const routeQueens = withBeats({
   destination: "Queens / Flushing",
   trainLine: "7 Train (Queens-bound)",
   platform: "Platform 5 - Deep Lower Level",
-  totalCheckpoints: 3,
-  steps: [
-    {
-      id: 1,
-      instruction: "Walk straight West for 50 meters down the long transfer corridor.",
-      subtext: "Follow the purple signs. The floor is flat with no steps.",
-      distance: "50m",
-      heading: "West",
-    },
-    {
-      id: 2,
-      instruction: "Turn right and walk 25 meters further West.",
-      subtext: "Keep following the purple 7 train signs.",
-      distance: "25m",
-      heading: "West",
-    },
-    {
-      id: 3,
-      instruction: "Take the escalator down to the lower level platform.",
-      subtext: "The escalator is directly ahead. Boarding is on both sides.",
-      distance: "10m",
-      heading: "West",
-    },
-  ],
-};
+});
 
 export function signCaption(id) {
   return {
@@ -86,35 +58,58 @@ export function matchRoute(text) {
 }
 
 export function startLine(route) {
-  const step = route.steps[0];
-  return `${route.trainLine}. ${route.platform}. ${step.instruction} ${step.subtext}`;
+  const step = route.beats[0];
+  return `${route.trainLine}. ${route.platform}. ${stepLine(step)}`;
 }
 
 function stepLine(step) {
-  return `${step.instruction} ${step.subtext}`;
+  return [step.instruction, step.subtext].filter(Boolean).join(" ");
+}
+
+export function mapIndexFor(route, cursor) {
+  const beats = route?.beats || [];
+  let lastMap = 0;
+  let count = -1;
+  for (let index = 0; index < beats.length; index += 1) {
+    if (!beats[index].onMap) continue;
+    count += 1;
+    if (index <= cursor) lastMap = count;
+    if (index === cursor) return count;
+  }
+  return lastMap;
 }
 
 export function advanceStep(route, cursor, doneIds) {
-  const steps = route.steps;
+  const beats = route.beats;
   const done = new Set(doneIds);
-  const current = steps[cursor];
-  if (current) done.add(current.id);
+  const current = beats[cursor];
   const nextIndex = cursor + 1;
-  if (nextIndex >= steps.length) {
+  if (!beats[nextIndex]) {
+    if (current?.onMap) done.add(current.id);
     return {
       cursor,
       doneIds: [...done],
       arrived: true,
-      line: ARRIVAL_LINE,
-      tone: "arrive",
+      line: current ? stepLine(current) : ARRIVAL_LINE,
+      tone: current?.tone || "forward",
     };
   }
+  if (current?.onMap && beats[nextIndex].onMap) done.add(current.id);
+  if (!current?.onMap && beats[nextIndex].onMap) {
+    for (let index = cursor - 1; index >= 0; index -= 1) {
+      if (beats[index].onMap) {
+        done.add(beats[index].id);
+        break;
+      }
+    }
+  }
+  const next = beats[nextIndex];
   return {
     cursor: nextIndex,
     doneIds: [...done],
-    arrived: false,
-    line: stepLine(steps[nextIndex]),
-    tone: "forward",
+    arrived: Boolean(next.arrive),
+    line: stepLine(next),
+    tone: next.tone,
   };
 }
 
@@ -132,7 +127,7 @@ export function replyFor(text, route, cursor, arrived) {
   if (arrived) return { line: ARRIVAL_LINE };
   if (/\btrain\b/.test(q)) return { line: `${route.trainLine}. ${route.platform}.` };
   if (/\bplatform\b/.test(q)) return { line: route.platform };
-  const step = route.steps[cursor] || route.steps[0];
+  const step = route.beats?.[cursor] || route.beats?.[0];
   return { line: stepLine(step) };
 }
 

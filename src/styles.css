@@ -135,6 +135,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid #fff; outline-off
 .arrow-cue svg .arrow-glow { stroke: rgba(82,238,161,.28); stroke-width: 27; filter: blur(8px); }
 .arrival-ring { display: grid; place-items: center; width: 100px; height: 100px; margin-top: 20px; border: 8px solid var(--accent); border-radius: 50%; box-shadow: 0 0 28px rgba(82,238,161,.45); }
 .arrival-ring span { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); }
+.sign-processing { position: absolute; z-index: 5; left: 50%; top: 46%; display: flex; flex-direction: column; align-items: center; gap: 12px; transform: translate(-50%, -50%); color: var(--accent); }
+.sign-processing span { width: 54px; height: 54px; border: 3px solid rgba(159,255,207,.25); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+.sign-processing strong { font: 700 13px/1 "Space Grotesk", sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .scan-control { position: absolute; z-index: 8; bottom: 72px; left: 16px; right: 16px; display: flex; flex-direction: column; align-items: center; gap: 7px; }
 .scan-control button { display: flex; align-items: center; gap: 8px; backdrop-filter: blur(12px); }
 .scan-control button:disabled { opacity: .5; cursor: not-allowed; }

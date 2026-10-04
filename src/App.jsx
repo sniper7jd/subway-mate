@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ARRIVAL_LINE,
+  ENTRANCE_LINE,
   OPENING,
   advanceStep,
+  mapIndexFor,
   replyFor,
 } from "./mockRoutes.js";
 import "./styles.css";
@@ -96,7 +98,7 @@ export function StationSchematic({ steps, current, doneIds }) {
 }
 
 export function ArrowCue({ heading, label, tone }) {
-  const rotation = tone === "arrive" ? 270 : (HEADING_TURN[heading] ?? 0);
+  const rotation = HEADING_TURN[heading] ?? 0;
   return (
     <div className={`arrow-cue ${tone === "back" ? "arrow-cue--back" : ""} ${tone === "arrive" ? "arrow-cue--arrive" : ""}`} aria-label={label}>
       <span className="arrow-cue__label">{label}</span>
@@ -131,11 +133,16 @@ export function CameraStage({
           <button onClick={onEnableCamera}>Enable camera</button>
         </div>
       )}
-      {cameraState === "ready" && <ArrowCue heading={heading} label={label} tone={tone} />}
+      {scanning ? (
+        <div className="sign-processing" role="status">
+          <span />
+          <strong>Reading the sign</strong>
+        </div>
+      ) : cameraState === "ready" ? <ArrowCue heading={heading} label={label} tone={tone} /> : null}
       <div className="scan-control">
-        <button onClick={onReadSign}>
+        <button onClick={onReadSign} disabled={scanning}>
           <Icon name="scan" />
-          Read this sign
+          {scanning ? "Reading…" : "Read this sign"}
         </button>
         {scanStatus && <span role="status">{scanStatus}</span>}
       </div>
@@ -192,14 +199,23 @@ function VoiceButton({ listening, onClick }) {
   );
 }
 
-function arrowLabel(step, arrived) {
-  if (arrived) return "ON YOUR LEFT · 5 MIN";
-  if (step?.isOffPath) return `WALK BACK ${step.distance}`;
-  return step?.distance || "";
+function arrowLabel(step) {
+  return step?.cue || step?.distance || "";
+}
+
+function pickVoice() {
+  const voices = window.speechSynthesis?.getVoices?.() || [];
+  return voices.find((voice) => voice.lang === "en-US") || voices.find((voice) => voice.lang?.startsWith("en")) || voices[0] || null;
+}
+
+function routeAudioToSpeaker() {
+  const session = navigator.audioSession;
+  if (session && session.type !== "playback") session.type = "playback";
 }
 
 export function App() {
   const [phase, setPhase] = useState("welcome");
+  const [finding, setFinding] = useState(false);
   const [route, setRoute] = useState(null);
   const [cursor, setCursor] = useState(0);
   const [doneIds, setDoneIds] = useState([]);
@@ -220,6 +236,7 @@ export function App() {
   const cursorRef = useRef(0);
   const doneRef = useRef([]);
   const arrivedRef = useRef(false);
+  const scanningRef = useRef(false);
 
   useEffect(() => { routeRef.current = route; }, [route]);
   useEffect(() => { cursorRef.current = cursor; }, [cursor]);
@@ -227,19 +244,28 @@ export function App() {
   useEffect(() => { arrivedRef.current = arrived; }, [arrived]);
 
   useEffect(() => {
-    if (videoRef.current && streamRef.current) videoRef.current.srcObject = streamRef.current;
-  }, [route, view]);
+    const video = videoRef.current;
+    if (!video || !streamRef.current) return;
+    video.srcObject = streamRef.current;
+    video.muted = true;
+    video.playsInline = true;
+    video.play?.().catch(() => {});
+  }, [route, view, cameraState]);
 
   const speakNow = useCallback((line) => {
-    if (!window.speechSynthesis || !line) return;
-    window.speechSynthesis.resume();
-    window.speechSynthesis.cancel();
+    const synth = window.speechSynthesis;
+    if (!synth || !line) return;
+    routeAudioToSpeaker();
+    synth.resume();
     const utterance = new SpeechSynthesisUtterance(line);
+    const voice = pickVoice();
+    if (voice) utterance.voice = voice;
+    utterance.volume = 1;
     utterance.rate = 0.95;
     utterance.onstart = () => setSpeaking(true);
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+    synth.speak(utterance);
   }, []);
 
   const say = useCallback((user, line) => {
@@ -258,15 +284,19 @@ export function App() {
 
   const beginDetect = useCallback(() => {
     setPhase("detecting");
-    speakNow("Detecting current location.");
+    window.speechSynthesis?.getVoices();
+    speakNow(ENTRANCE_LINE);
     window.setTimeout(() => {
       setPhase("ask");
       setHistory([{ role: "mate", text: OPENING }]);
-      speakNow(OPENING);
-    }, 1200);
+    }, 1400);
   }, [speakNow]);
 
   const enableCamera = useCallback(async () => {
+    if (streamRef.current?.getVideoTracks().some((track) => track.readyState === "live")) {
+      setCameraState("ready");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
@@ -274,10 +304,14 @@ export function App() {
       });
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play?.().catch(() => {});
+      }
       setCameraState("ready");
+      routeAudioToSpeaker();
     } catch {
-      setCameraState("denied");
+      if (!streamRef.current) setCameraState("denied");
     }
   }, []);
 
@@ -297,26 +331,50 @@ export function App() {
   }, [enableCamera]);
 
   const handleMessage = useCallback((text) => {
-    const result = replyFor(text, routeRef.current, cursorRef.current, arrivedRef.current);
-    applyRouteResult(result);
+    const active = routeRef.current;
+    const result = replyFor(text, active, cursorRef.current, arrivedRef.current);
     setDestination("");
+    if (result.route && !active) {
+      enableCamera();
+      setHistory((prev) => [...prev, { role: "you", text }, { role: "mate", text: "Finding the train." }].slice(-40));
+      speakNow(`Finding the train. ${result.line}`);
+      setFinding(true);
+      window.setTimeout(() => {
+        applyRouteResult(result);
+        setFinding(false);
+        setHistory((prev) => [...prev, { role: "mate", text: result.line }].slice(-40));
+      }, 1600);
+      return;
+    }
+    applyRouteResult(result);
     say(text, result.line);
-  }, [applyRouteResult, say]);
+  }, [applyRouteResult, enableCamera, say, speakNow]);
 
   const readSign = useCallback(() => {
     const active = routeRef.current;
-    if (!active) return;
+    if (!active || scanningRef.current) return;
     if (arrivedRef.current) {
       say("", ARRIVAL_LINE);
       return;
     }
+    const wait = [1600, 2400, 1900, 2200][cursorRef.current] ?? 1800;
     const result = advanceStep(active, cursorRef.current, doneRef.current);
-    setCursor(result.cursor);
-    setDoneIds(result.doneIds);
-    setArrived(result.arrived);
-    setScanStatus("");
-    say("", result.line);
-  }, [say]);
+    speakNow(`Reading the sign. ${result.line}`);
+    scanningRef.current = true;
+    setScanning(true);
+    setScanStatus("Reading the sign…");
+    window.setTimeout(() => {
+      const currentRoute = routeRef.current;
+      scanningRef.current = false;
+      setScanning(false);
+      if (!currentRoute) return;
+      setCursor(result.cursor);
+      setDoneIds(result.doneIds);
+      setArrived(result.arrived);
+      setScanStatus("");
+      setHistory((prev) => [...prev, { role: "mate", text: result.line }].slice(-40));
+    }, wait);
+  }, [say, speakNow]);
 
   const toggleListening = useCallback(() => {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -337,7 +395,12 @@ export function App() {
       if (text) handleMessage(text);
     };
     recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+    recognition.onerror = (event) => {
+      setListening(false);
+      if (event?.error === "not-allowed" || event?.error === "service-not-allowed") {
+        say("", "Allow the microphone, then tap Ask again.");
+      }
+    };
     recognitionRef.current = recognition;
     setListening(true);
     recognition.start();
@@ -356,6 +419,7 @@ export function App() {
     setScanStatus("");
     setView("camera");
     setPhase("welcome");
+    setFinding(false);
     setHistory([]);
   }, []);
 
@@ -402,38 +466,46 @@ export function App() {
         <section className="welcome" aria-live="polite">
           <div className="wordmark"><span className="wordmark__mark">M</span> SUBWAY MATE</div>
           <div className="welcome__content">
-            <p className="kicker">LOCATING</p>
-            <h1>Detecting current location</h1>
-            <p className="welcome__copy">Checking which station entrance you are at.</p>
+            <p className="kicker">DETECTING LOCATION</p>
+            <h1>42 St / 7 Av</h1>
+            <p className="welcome__copy">Times Square / Broadway entrance</p>
           </div>
         </section>
       </main>
     );
   }
 
-  const step = route?.steps[cursor];
-  const tone = arrived ? "arrive" : step?.isOffPath ? "back" : "forward";
-  const label = arrowLabel(step, arrived);
+  const step = route?.beats?.[cursor];
+  const tone = step?.tone || "forward";
+  const label = arrowLabel(step);
+  const mapCursor = route ? mapIndexFor(route, cursor) : 0;
 
   return (
     <main className="app app--active">
       <section className="stage">
         <header className="topbar">
           <div><span className="status-dot" /> LIVE AT <b>42 ST–TIMES SQUARE</b></div>
-          <div className="route-badges" aria-label="Active train">
-            <span className={route === null || route?.trainLine.startsWith("1") ? "" : "is-seven"}>
-              {route?.trainLine.startsWith("7") ? "7" : "1"}
-            </span>
-          </div>
+          {route ? (
+            <div className="route-badges" aria-label="Active train">
+              <span className={route.trainLine.startsWith("7") ? "is-seven" : ""}>
+                {route.trainLine.startsWith("7") ? "7" : "1"}
+              </span>
+            </div>
+          ) : <div className="route-badges" />}
         </header>
 
-        {route ? (
+        {finding ? (
+          <div className="route-setup">
+            <p className="kicker">TRAIN</p>
+            <h1>Finding the train</h1>
+          </div>
+        ) : route ? (
           <>
             {view === "camera" ? (
               <CameraStage
                 videoRef={videoRef}
                 cameraState={cameraState}
-                heading={arrived ? "West" : step?.heading}
+                heading={step?.heading}
                 label={label}
                 tone={tone}
                 scanning={scanning}
@@ -442,7 +514,7 @@ export function App() {
                 onEnableCamera={enableCamera}
               />
             ) : (
-              <StationSchematic steps={route.steps} current={cursor} doneIds={doneIds} />
+              <StationSchematic steps={route.steps} current={mapCursor} doneIds={doneIds} />
             )}
             <div className="view-toggle" aria-label="Navigation view">
               <button className={view === "camera" ? "is-active" : ""} onClick={() => setView("camera")}>
@@ -469,7 +541,7 @@ export function App() {
           <JourneyCard
             route={route}
             steps={route.steps}
-            current={cursor}
+            current={mapCursor}
             doneIds={doneIds}
             onExit={endJourney}
           />
