@@ -1,0 +1,7 @@
+commons-42nd-street-sign.jpg
+Author: Kidfly182
+License: CC BY-SA 4.0
+License URL: https://creativecommons.org/licenses/by-sa/4.0
+Source: https://commons.wikimedia.org/wiki/File:42nd_Street_Times_Square_Station_Sign.jpg
+
+uptown.png, downtown.png, seven-stairs.png, and blank.png are original stand-in signs drawn for this demo. They are not photographs of the station.
