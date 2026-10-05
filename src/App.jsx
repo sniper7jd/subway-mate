@@ -15,6 +15,8 @@ import {
   mapIndexFor,
   nextTrainLine,
   observationClarificationLine,
+  upcomingTrains,
+  walkMinutesRemaining,
   reportsLocation,
   rewindStep as rewindRouteStep,
   replyFor,
@@ -196,8 +198,13 @@ export function SignPhoto({ scan, readerState, onSelect, onSample, onConfirm, on
   );
 }
 
-export function JourneyCard({ route, steps, current, doneIds, onExit, elevatorNotice }) {
+export function JourneyCard({ route, steps, current, doneIds, onExit, elevatorNotice, arrivals, now, arrived }) {
   const done = doneIds.length;
+  const board = upcomingTrains(arrivals, now, {
+    walkMinutes: walkMinutesRemaining(route, current, arrived),
+  });
+  const reachable = board.trains.filter((train) => train.minutes >= board.walkMinutes).slice(0, 2);
+  const tooSoon = board.trains.filter((train) => train.minutes < board.walkMinutes);
   return (
     <article className="journey-card">
       <div>
@@ -205,6 +212,22 @@ export function JourneyCard({ route, steps, current, doneIds, onExit, elevatorNo
         <h2>{route.trainLine}</h2>
       </div>
       <button className="text-button" onClick={onExit}>End</button>
+      <div className="journey-trains" role="status">
+        {!arrivals && <p>Checking subwayinfo.nyc for the next trains…</p>}
+        {arrivals && board.stale && <p>Train times from subwayinfo.nyc are older than 3 minutes. Check the platform sign.</p>}
+        {arrivals && !board.stale && reachable.map((train) => (
+          <p key={`${train.label}-${train.minutes}`}>{train.label} · {train.minutes <= 0 ? "now" : `${train.minutes} min`}</p>
+        ))}
+        {arrivals && !board.stale && !reachable.length && (
+          <p>{board.walkMinutes > 0 ? "No listed train you can reach before the mapped walk ends." : "No upcoming trains in the latest subwayinfo.nyc check."}</p>
+        )}
+        {arrivals && !board.stale && tooSoon.length > 0 && board.walkMinutes > 0 && (
+          <p>A sooner train is listed, but it arrives before the about {board.walkMinutes} minutes still mapped to the platform.</p>
+        )}
+        {arrivals && !board.stale && (
+          <p>subwayinfo.nyc, not an MTA feed{board.age ? `, updated ${board.age}` : ""}.</p>
+        )}
+      </div>
       <div className="journey-card__progress" aria-hidden="true">
         <span style={{ width: `${route.totalCheckpoints ? (done / route.totalCheckpoints) * 100 : route.alreadyAtDestination ? 100 : 0}%` }} />
       </div>
@@ -422,6 +445,8 @@ export function App() {
   const [cursor, setCursor] = useState(0);
   const [doneIds, setDoneIds] = useState([]);
   const [arrived, setArrived] = useState(false);
+  const [platformArrivals, setPlatformArrivals] = useState(null);
+  const [clock, setClock] = useState(() => Date.now());
   const [destination, setDestination] = useState("");
   const [stepFree, setStepFree] = useState(false);
   const [equipmentStatuses, setEquipmentStatuses] = useState({});
@@ -791,6 +816,27 @@ export function App() {
       return null;
     }
   }, []);
+
+  useEffect(() => {
+    if (!route?.tripId) {
+      setPlatformArrivals(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const pull = () => {
+      loadTripArrivals(route.tripId).then((data) => {
+        if (!cancelled && data) setPlatformArrivals(data);
+      });
+    };
+    pull();
+    const poll = window.setInterval(pull, 30_000);
+    const tick = window.setInterval(() => setClock(Date.now()), 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(poll);
+      window.clearInterval(tick);
+    };
+  }, [route?.tripId, loadTripArrivals]);
 
   const handleMessage = useCallback(async (text) => {
     clearPhotoScan();
@@ -1351,6 +1397,9 @@ export function App() {
             doneIds={doneIds}
             onExit={endJourney}
             elevatorNotice={elevatorNotice}
+            arrivals={platformArrivals}
+            now={clock}
+            arrived={arrived}
           />
         )}
         {route && (

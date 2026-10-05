@@ -36,6 +36,7 @@ import {
   requestedTripId,
   rewindStep,
   routeForTrip,
+  nextTrainLine,
   replyFor,
   unrecognizedLocationLine,
 } from "../src/mockRoutes.js";
@@ -822,10 +823,19 @@ const liveArrivals = {
 };
 const trainTimeAnswer = replyFor("When is the train?", screenBronx, 0, false, { arrivals: liveArrivals });
 assert(
-  /still on the way/i.test(trainTimeAnswer.line)
+  /subwayinfo\.nyc/.test(trainTimeAnswer.line)
+    && /updated just now/i.test(trainTimeAnswer.line)
     && /Van Cortlandt Park-242 St in 4 minutes/i.test(trainTimeAnswer.line)
     && /check the train sign/i.test(trainTimeAnswer.line),
-  "a train-time question uses the platform feed without skipping the walk",
+  "a train-time question names the feed, its age, and a train the walk can reach",
+);
+assert(
+  /none is one you can count on catching/i.test(nextTrainLine({
+    fetchedAt: Date.now(),
+    source: "subwayinfo.nyc",
+    next: [{ label: "1 Van Cortlandt Park-242 St", at: Date.now() + 2 * 60000 }],
+  }, Date.now(), { walkMinutes: 4 })),
+  "a train due before the mapped walk ends is not offered as the one to catch",
 );
 assert(
   /can't get live train times/i.test(replyFor("When is the train?", screenBronx, 0, false).line),
@@ -843,7 +853,7 @@ assert(
 );
 const imessageTimes = processTextMessage(imessageStart.state, "when is the train", { arrivals: liveArrivals });
 assert(
-  /still on the way/i.test(imessageTimes.reply) && imessageTimes.state.cursor === 0,
+  /subwayinfo\.nyc/.test(imessageTimes.reply) && imessageTimes.state.cursor === 0,
   "iMessage can answer a train-time question without advancing the route",
 );
 

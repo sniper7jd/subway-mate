@@ -1,11 +1,7 @@
 import "dotenv/config";
-import busboy from "busboy";
 import express from "express";
 import station from "../shared/times-square.json" with { type: "json" };
 import {
-  applyGrokPhrases,
-  applyRoute,
-  buildLocalManifest,
   guessEntrance,
   localGuide,
   shortRide,
@@ -39,57 +35,6 @@ function isVisionRateLimited(req) {
     }
   }
   return false;
-}
-
-function readMultipart(req) {
-  return new Promise((resolve, reject) => {
-    const parser = busboy({ headers: req.headers });
-    const fields = {};
-    const files = [];
-    parser.on("field", (name, value) => {
-      fields[name] = value;
-    });
-    parser.on("file", (name, file, info) => {
-      const chunks = [];
-      file.on("data", (chunk) => chunks.push(chunk));
-      file.on("end", () => {
-        files.push({
-          name,
-          mime: info.mimeType || "application/octet-stream",
-          buffer: Buffer.concat(chunks),
-        });
-      });
-    });
-    parser.on("finish", () => resolve({ fields, files }));
-    parser.on("error", reject);
-    req.pipe(parser);
-  });
-}
-
-function stationBrief() {
-  return {
-    stationName: station.stationName,
-    elevators: station.elevators,
-    nodes: station.nodes.map((node) => ({
-      id: node.id,
-      name: node.name,
-      expectedText: node.expectedText,
-      landmarks: node.landmarks,
-      accessible: node.accessible,
-      follow: node.follow,
-      reject: node.reject,
-      accessibleInstruction: node.accessibleInstruction || null,
-    })),
-    trips: station.trips.map((trip) => ({
-      id: trip.id,
-      title: trip.title,
-      summary: trip.summary,
-      stepIds: trip.stepIds,
-      correctNodeId: trip.correctNodeId,
-      minutesToPlatform: trip.minutesToPlatform,
-    })),
-    layout: station.layout,
-  };
 }
 
 async function grokText(prompt, imageDataUrl) {
@@ -173,92 +118,6 @@ app.get("/api/arrivals", async (req, res) => {
   }
 });
 
-app.post("/api/manifest", async (req, res) => {
-  const { tripId, profile } = req.body || {};
-  let manifest;
-  try {
-    manifest = buildLocalManifest(station, tripId, profile || "tourist");
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-  const trip = tripById(station, tripId);
-  try {
-    const arrivals = await loadArrivals(trip);
-    manifest = { ...manifest, arrivals };
-  } catch (error) {
-    manifest = { ...manifest, arrivalsError: error.message };
-  }
-  if (!process.env.XAI_API_KEY) {
-    return res.json({ ...manifest, grokNote: "No API key, so the station file wrote the manifest." });
-  }
-  try {
-    const prompt = [
-      "You write a Subway Mate trip manifest. Return JSON only.",
-      "Use only the node ids listed for this trip. Do not add places, distances, or compass degrees.",
-      "A wheelchair profile must never be told to take stairs. If a node is not accessible, send them to the elevator sentence already in the station file.",
-      `Profile: ${manifest.profile}`,
-      `Trip: ${JSON.stringify({ id: trip.id, title: trip.title, summary: trip.summary, stepIds: trip.stepIds, correctNodeId: trip.correctNodeId })}`,
-      `Station: ${JSON.stringify(stationBrief())}`,
-      'Schema: {"summary":"one sentence","steps":[{"nodeId":"id","sentence":"one instruction"}]}',
-    ].join("\n");
-    const text = await grokText(prompt);
-    const parsed = parseJson(text);
-    manifest = applyGrokPhrases(manifest, parsed);
-  } catch (error) {
-    manifest = { ...manifest, grokNote: error.message, source: "station-file" };
-  }
-  manifest = applyRoute(station, manifest, req.body?.entranceId || "ent-42-7");
-  res.json(manifest);
-});
-
-app.post("/api/reconnect", async (req, res) => {
-  const body = req.body || {};
-  let { manifest, log } = body;
-  if (!manifest?.tripId && body.tripId) {
-    try {
-      manifest = applyRoute(station, buildLocalManifest(station, body.tripId, "tourist"));
-    } catch (error) {
-      return res.status(400).json({ error: error.message });
-    }
-  }
-  if (!manifest?.tripId) return res.status(400).json({ error: "Missing manifest" });
-  const trip = tripById(station, manifest.tripId);
-  let arrivals = manifest.arrivals || null;
-  if (trip) {
-    try {
-      arrivals = await loadArrivals(trip);
-    } catch (error) {
-      arrivals = { ...(manifest.arrivals || {}), error: error.message };
-    }
-  }
-  if (!process.env.XAI_API_KEY) {
-    return res.json({ ...manifest, arrivals, summary: "", message: manifest.summary || "", source: "station-file" });
-  }
-  try {
-    const prompt = [
-      "You are Subway Mate catching up after a dead zone. Return JSON only.",
-      "Use the offline log and the manifest. Do not invent a station, corridor, or train that is not already named there.",
-      "Do not mention the signal, the network, or being back online.",
-      `Manifest: ${JSON.stringify({ title: manifest.title, summary: manifest.summary, steps: manifest.steps?.map((step) => ({ nodeId: step.nodeId, instruction: step.instruction })) })}`,
-      `Offline log: ${JSON.stringify(log || [])}`,
-      'Schema: {"summary":"one sentence about the next step from the manifest, or an empty string if nothing changed"}',
-    ].join("\n");
-    const text = await grokText(prompt);
-    const parsed = parseJson(text);
-    const summary = parsed.summary || "";
-    res.json({ ...manifest, arrivals, summary, message: summary || manifest.summary || "", source: "grok" });
-  } catch (error) {
-    res.json({
-      ...manifest,
-      summary: "",
-      message: manifest.summary || "",
-      error: error.message,
-      arrivals,
-      source: "station-file",
-    });
-  }
-});
-
 app.post("/api/transcribe", async (req, res) => {
   const { transcript, tripId, nodeId, audioDataUrl } = req.body || {};
   if (typeof transcript === "string") {
@@ -327,59 +186,6 @@ app.post("/api/transcribe", async (req, res) => {
     res.json({ text: typeof data.text === "string" ? data.text : "" });
   } catch (error) {
     res.status(502).json({ error: error.message || "Speech transcription failed" });
-  }
-});
-
-app.post("/api/landmark", async (req, res) => {
-  let manifest = req.body?.manifest;
-  let imageDataUrl = req.body?.imageDataUrl;
-  if ((req.headers["content-type"] || "").includes("multipart/form-data")) {
-    let parsed;
-    try {
-      parsed = await readMultipart(req);
-    } catch (error) {
-      return res.status(400).json({ error: error.message || "Could not read the photo" });
-    }
-    try {
-      manifest = buildLocalManifest(station, parsed.fields.tripId, "tourist");
-    } catch (error) {
-      return res.status(400).json({ error: error.message });
-    }
-    const image = parsed.files.find((file) => file.name === "image");
-    if (!image?.buffer?.length) return res.status(400).json({ error: "Need a photo and a manifest" });
-    imageDataUrl = `data:${image.mime};base64,${image.buffer.toString("base64")}`;
-  }
-  if (!manifest?.steps || !imageDataUrl) return res.status(400).json({ error: "Need a photo and a manifest" });
-  const choices = manifest.steps.map((step) => ({
-    nodeId: step.nodeId,
-    name: step.name,
-    landmarks: step.landmarks,
-    instruction: step.instruction,
-  }));
-  if (!process.env.XAI_API_KEY) {
-    return res.json({
-      nodeId: null,
-      sentence: "An unmarked photo needs Grok, and no API key is set. Find a sign.",
-    });
-  }
-  try {
-    const prompt = [
-      "Look at this subway photo. Return JSON only.",
-      "Pick a nodeId only if the picture matches one of the landmark phrases. Otherwise nodeId is null.",
-      "Do not describe a path that is not in the instruction for that node.",
-      `Choices: ${JSON.stringify(choices)}`,
-      'Schema: {"nodeId":"id or null","sentence":"one sentence"}',
-    ].join("\n");
-    const text = await grokText(prompt, imageDataUrl);
-    const parsed = parseJson(text);
-    const known = choices.some((choice) => choice.nodeId === parsed.nodeId);
-    if (!known) {
-      return res.json({ nodeId: null, sentence: "I cannot tell which spot this is from the list." });
-    }
-    const step = manifest.steps.find((item) => item.nodeId === parsed.nodeId);
-    res.json({ nodeId: parsed.nodeId, sentence: step.instruction });
-  } catch (error) {
-    res.status(502).json({ error: error.message, sentence: "I cannot tell which spot this is from the list." });
   }
 });
 

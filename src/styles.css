@@ -235,6 +235,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid #fff; outline-off
 .journey-card__progress { grid-column: 1 / -1; height: 3px; overflow: hidden; border-radius: 4px; background: #243a32; }
 .journey-card__progress span { display: block; height: 100%; background: var(--accent-strong); transition: width .3s ease; }
 .journey-card > p { grid-column: 1 / -1; margin: 1px 0 0; color: #c8d9d1; font-size: 11px; }
+.journey-trains { grid-column: 1 / -1; display: grid; gap: 2px; }
+.journey-trains p { margin: 0; color: #d7efe4; font-size: 12px; line-height: 1.35; }
 .journey-card > p.journey-start-cues { color: var(--muted); font-size: 10px; line-height: 1.35; }
 .journey-steps { grid-column: 1 / -1; max-height: 88px; margin: 8px 0 0; padding-left: 18px; overflow: auto; color: #c8d9d1; font-size: 12px; line-height: 1.35; }
 .journey-steps li.is-current { color: #9fffcf; font-weight: 700; }
@@ -284,7 +286,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid #fff; outline-off
 @media (max-height: 700px) {
   .app--active { grid-template-rows: minmax(0, 66dvh) minmax(34dvh, auto); }
   .two-line-chat { min-height: 60px; padding-top: 7px; }
-  .journey-card > p { display: none; }
+  .journey-card > p:not(.journey-keep) { display: none; }
+  .journey-trains { display: grid; }
   .journey-preferences summary { padding-bottom: 5px; }
   .confirm-step { bottom: 56px; }
   .preview-button { bottom: 104px; }

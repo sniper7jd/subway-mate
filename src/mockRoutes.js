@@ -520,30 +520,73 @@ export function asksForTrainTime(text) {
   return TRAIN_TIME.test(String(text || ""));
 }
 
-export function nextTrainLine(arrivals, now = Date.now()) {
-  if (!arrivals?.next?.length) return "";
-  const age = now - arrivals.fetchedAt;
-  if (!Number.isFinite(arrivals.fetchedAt) || age > 3 * 60 * 1000) return "";
-  const upcoming = arrivals.next
+const TRAIN_FEED = "subwayinfo.nyc";
+const TRAIN_FEED_STALE_MS = 3 * 60 * 1000;
+
+export function walkMinutesRemaining(route, cursor = 0, arrived = false) {
+  if (!route || arrived || route.alreadyAtDestination) return 0;
+  const trip = tripById(station, route.tripId);
+  const total = trip?.minutesToPlatform;
+  if (!Number.isFinite(total) || total <= 0 || !route.steps?.length) return 0;
+  const stepsLeft = Math.max(1, route.steps.length - cursor);
+  return Math.max(1, Math.round(total * (stepsLeft / route.steps.length)));
+}
+
+export function trainFeedAge(arrivals, now = Date.now()) {
+  if (!Number.isFinite(arrivals?.fetchedAt)) return "";
+  const seconds = Math.max(0, Math.round((now - arrivals.fetchedAt) / 1000));
+  if (seconds < 15) return "just now";
+  if (seconds < 90) return `${seconds} seconds ago`;
+  const minutes = Math.round(seconds / 60);
+  return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+}
+
+function minutePhrase(count) {
+  if (count <= 0) return "arriving now";
+  if (count === 1) return "in 1 minute";
+  return `in ${count} minutes`;
+}
+
+export function upcomingTrains(arrivals, now = Date.now(), options = {}) {
+  const source = arrivals?.source || TRAIN_FEED;
+  const age = trainFeedAge(arrivals, now);
+  const ageMs = now - arrivals?.fetchedAt;
+  const stale = !arrivals?.next?.length
+    || !Number.isFinite(arrivals?.fetchedAt)
+    || ageMs > TRAIN_FEED_STALE_MS
+    || ageMs < -5_000;
+  const walkMinutes = Number.isFinite(options.walkMinutes) ? Math.max(0, options.walkMinutes) : 0;
+  const trains = stale ? [] : arrivals.next
     .map((item) => ({
       label: item.label,
       minutes: Math.round((item.at - now) / 60000),
     }))
-    .filter((item) => item.label && Number.isFinite(item.minutes))
-    .sort((left, right) => left.minutes - right.minutes)
-    .slice(0, 2);
-  if (!upcoming.length) return "";
-  const phrase = upcoming.map((item) => {
-    if (item.minutes <= 0) return `${item.label} arriving now`;
-    if (item.minutes === 1) return `${item.label} in 1 minute`;
-    return `${item.label} in ${item.minutes} minutes`;
-  }).join(", then ");
-  const place = arrivals.stationName ? ` at ${arrivals.stationName}` : "";
-  return `Next${place}: ${phrase}. Check the train sign before you board.`;
+    .filter((item) => item.label && Number.isFinite(item.minutes) && item.minutes >= 0)
+    .sort((left, right) => left.minutes - right.minutes);
+  return { stale, trains, walkMinutes, age, source };
 }
 
-function lineWithTrainTimes(line, arrivals) {
-  const times = nextTrainLine(arrivals);
+export function nextTrainLine(arrivals, now = Date.now(), options = {}) {
+  const board = upcomingTrains(arrivals, now, options);
+  if (board.stale || !board.trains.length) return "";
+  const reachable = board.trains.filter((item) => item.minutes + 0.001 >= board.walkMinutes);
+  const place = arrivals?.stationName ? ` at ${arrivals.stationName}` : "";
+  const credit = `Source: ${board.source}, updated ${board.age}.`;
+  if (!reachable.length) {
+    return `The next listed trains arrive before the about ${board.walkMinutes} minutes still mapped to the platform, so none is one you can count on catching. ${credit} Check the sign when you get there.`;
+  }
+  const phrase = reachable.slice(0, 2).map((item) => `${item.label} ${minutePhrase(item.minutes)}`).join(", then ");
+  const skipped = board.trains.some((item) => item.minutes < board.walkMinutes);
+  const skipNote = skipped
+    ? " A sooner train is listed, but it arrives before you can reach the platform."
+    : "";
+  return `Next${place}: ${phrase}.${skipNote} ${credit} Check the train sign before you board.`;
+}
+
+function lineWithTrainTimes(line, arrivals, route, cursor, arrived) {
+  const times = nextTrainLine(arrivals, Date.now(), {
+    walkMinutes: walkMinutesRemaining(route, cursor, arrived),
+  });
   return times ? `${line} ${times}` : line;
 }
 
@@ -560,7 +603,7 @@ export function replyFor(text, route, cursor, arrived, options = {}) {
   const askingTimes = asksForTrainTime(text);
   if (route && !arrived && isStepConfirmation(spokenText)) {
     const result = advanceStep(route, cursor, options.doneIds || []);
-    if (result.arrived) result.line = lineWithTrainTimes(result.line, options.arrivals);
+    if (result.arrived) result.line = lineWithTrainTimes(result.line, options.arrivals, route, cursor, true);
     return result;
   }
   if (BACK_ONE_STEP.test(spokenText.trim())) {
@@ -617,19 +660,22 @@ export function replyFor(text, route, cursor, arrived, options = {}) {
     }
     let line = startLine(picked);
     if (askingTimes) {
-      const times = nextTrainLine(options.arrivals);
+      const times = nextTrainLine(options.arrivals, Date.now(), {
+        walkMinutes: walkMinutesRemaining(picked, 0, false),
+      });
       line = times ? `${line} ${times}` : `${line} I can't get live train times right now.`;
     }
     return { route: picked, cursor: 0, doneIds: [], arrived: false, line };
   }
 
   if (route && askingTimes) {
-    const times = nextTrainLine(options.arrivals);
+    const times = nextTrainLine(options.arrivals, Date.now(), {
+      walkMinutes: walkMinutesRemaining(route, cursor, arrived),
+    });
     if (!times) {
       return { line: `I can't get live train times right now. ${route.arrivalLine || ARRIVAL_LINE}` };
     }
-    const walking = arrived ? "" : "You're still on the way. ";
-    return { line: `${walking}${times}` };
+    return { line: times };
   }
 
   if (options.locationObserved && options.startNodeId) {
@@ -718,7 +764,7 @@ export function replyFor(text, route, cursor, arrived, options = {}) {
             : "The map shows no stairs on this path, but full step-free access is not verified. Ask station staff if you need step-free access.",
     };
   }
-  if (arrived) return { line: lineWithTrainTimes(route.arrivalLine || ARRIVAL_LINE, options.arrivals) };
+  if (arrived) return { line: lineWithTrainTimes(route.arrivalLine || ARRIVAL_LINE, options.arrivals, route, cursor, true) };
   if (/\b(current step|what next|next step|repeat|say that again)\b/.test(query)) {
     const step = route.steps[cursor];
     return { line: step?.instruction || ARRIVAL_LINE };

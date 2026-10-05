@@ -1,7 +1,8 @@
 import station from "../shared/times-square.json" with { type: "json" };
 import { tripById } from "../shared/guidance.js";
 
-const CACHE_MS = 45_000;
+const CACHE_MS = 30_000;
+const TRAIN_FEED = "subwayinfo.nyc";
 const ERROR_CACHE_MS = 20_000;
 const cache = new Map();
 
@@ -31,6 +32,7 @@ export async function loadArrivals(trip) {
       fetchedAt: Date.now(),
       next,
       stationName: data.stationName || station.stationName,
+      source: TRAIN_FEED,
     };
     cache.set(trip.id, { at: Date.now(), data: result });
     return result;
