@@ -1,4 +1,6 @@
 import station from "./times-square.json" with { type: "json" };
+import diagram from "./times-square-diagram.geojson" with { type: "json" };
+import { MultiFloorRouter } from "./router.js";
 import { buildVisionCueCatalog, sanitizeVisionCueMatch } from "./vision.js";
 import {
   createConversationState,
@@ -905,5 +907,32 @@ assert(
   /no verified step-free/i.test(blockedElevator.reply) && !blockedElevator.state.route,
   "iMessage step-free routing uses the refreshed elevator inventory",
 );
+
+function runRouterChecks() {
+  const router = MultiFloorRouter.fromGeoJSON(diagram);
+
+  const wheelchairNqrw = router.findPath("ent-43-broadway", "nqrw-uptown", { profile: "wheelchair" });
+  if (!wheelchairNqrw.success || wheelchairNqrw.segments.some((segment) => segment.type === "stairs")) {
+    throw new Error("Wheelchair NQRW failed or used stairs");
+  }
+
+  const wheelchairSeven = router.findPath("ent-42-7", "seven-platform", { profile: "wheelchair" });
+  if (wheelchairSeven.success) throw new Error("Wheelchair to 7 should fail due to inaccessible destination/edges");
+
+  const standardSeven = router.findPath("ent-42-7", "seven-platform", { profile: "tourist" });
+  if (!standardSeven.success || !standardSeven.segments.some((segment) => segment.type === "stairs")) {
+    throw new Error("Standard 7 route missing stairs");
+  }
+
+  const unknown = router.findPath("ent-42-7", "unknown-node");
+  if (unknown.success || unknown.path.length > 0) throw new Error("Unknown node routed successfully");
+
+  const crossMezzanine = router.findPath("mez-upper", "nqrw-mezz");
+  if (crossMezzanine.success) throw new Error("Graph should not connect mez-upper directly to nqrw-mezz");
+
+  console.log("MultiFloorRouter checks passed.");
+}
+
+runRouterChecks();
 
 console.log("self-check ok");

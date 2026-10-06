@@ -1,0 +1,104 @@
+{
+  "type": "FeatureCollection",
+  "name": "TimesSquare_Schematic",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "type": "island", "level": 0, "name": "Seventh Avenue street" },
+      "geometry": { "type": "Polygon", "coordinates": [[[50, 390], [150, 390], [150, 440], [50, 440], [50, 390]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "island", "level": 0, "name": "Broadway street and plazas" },
+      "geometry": { "type": "Polygon", "coordinates": [[[350, 390], [450, 390], [450, 440], [350, 440], [350, 390]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "island", "level": -1, "name": "Upper Mezzanine (7th Ave)" },
+      "geometry": { "type": "Polygon", "coordinates": [[[50, 395], [150, 395], [150, 425], [50, 425], [50, 395]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "island", "level": -1, "name": "N/Q/R/W Mezzanine (Broadway)" },
+      "geometry": { "type": "Polygon", "coordinates": [[[350, 415], [450, 415], [450, 435], [350, 435], [350, 415]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "island", "level": -2, "name": "1/2/3 Platforms" },
+      "geometry": { "type": "Polygon", "coordinates": [[[50, 395], [150, 395], [150, 425], [50, 425], [50, 395]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "island", "level": -2, "name": "N/Q/R/W Platform" },
+      "geometry": { "type": "Polygon", "coordinates": [[[350, 415], [450, 415], [450, 435], [350, 435], [350, 415]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "island", "level": -3, "name": "Lower Mezzanine" },
+      "geometry": { "type": "Polygon", "coordinates": [[[50, 400], [150, 400], [150, 420], [50, 420], [50, 400]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "type": "island", "level": -4, "name": "7 Platform Area" },
+      "geometry": { "type": "Polygon", "coordinates": [[[50, 405], [150, 405], [150, 415], [50, 415], [50, 405]]] }
+    },
+
+    {"type":"Feature","properties":{"id":"ent-42-7","level":0,"name":"42nd Street and Seventh Avenue","accessible":true,"signs":[]},"geometry":{"type":"Point","coordinates":[100,420]}},
+    {"type":"Feature","properties":{"id":"ent-40-7","level":0,"name":"40th Street and Seventh Avenue","accessible":true,"signs":[]},"geometry":{"type":"Point","coordinates":[100,400]}},
+    {"type":"Feature","properties":{"id":"ent-40-broadway","level":0,"name":"40th Street and Broadway","accessible":true,"signs":[]},"geometry":{"type":"Point","coordinates":[400,400]}},
+    {"type":"Feature","properties":{"id":"ent-broadway-plaza","level":0,"name":"Broadway plaza between 42nd and 43rd","accessible":true,"signs":["Baskin-Robbins","Broadway plaza"]},"geometry":{"type":"Point","coordinates":[400,425]}},
+    {"type":"Feature","properties":{"id":"broadway-plaza-elevator","level":0,"name":"Broadway plaza shuttle connection","accessible":false,"signs":["Knickerbocker Hotel sign"]},"geometry":{"type":"Point","coordinates":[420,425]}},
+    {"type":"Feature","properties":{"id":"ent-43-broadway","level":0,"name":"43rd Street and Broadway, northwest corner","accessible":true,"signs":["43rd street","broadway","elevator","EL619"]},"geometry":{"type":"Point","coordinates":[400,430]}},
+    {"type":"Feature","properties":{"id":"mez-upper","level":-1,"name":"Upper mezzanine","accessible":true,"signs":[]},"geometry":{"type":"Point","coordinates":[100,410]}},
+    {"type":"Feature","properties":{"id":"nqrw-mezz","level":-1,"name":"N/Q/R/W mezzanine","accessible":true,"signs":["N","Q","R","W","EL230"]},"geometry":{"type":"Point","coordinates":[400,425]}},
+    {"type":"Feature","properties":{"id":"uptown-123","level":-2,"name":"Uptown 1/2/3","accessible":false,"signs":["uptown","bronx","green globe"]},"geometry":{"type":"Point","coordinates":[90,410]}},
+    {"type":"Feature","properties":{"id":"downtown-123","level":-2,"name":"Downtown 1/2/3","accessible":false,"signs":["downtown","brooklyn","roundel"]},"geometry":{"type":"Point","coordinates":[110,410]}},
+    {"type":"Feature","properties":{"id":"nqrw-uptown","level":-2,"name":"Uptown N/Q/R/W platform","accessible":true,"signs":["uptown","northbound","42 mosaic","EL230"]},"geometry":{"type":"Point","coordinates":[400,425]}},
+    {"type":"Feature","properties":{"id":"lower-mezzanine","level":-3,"name":"Lower mezzanine","accessible":false,"signs":[]},"geometry":{"type":"Point","coordinates":[100,410]}},
+    {"type":"Feature","properties":{"id":"seven-stairs","level":-4,"name":"7 train stairs","accessible":false,"signs":["7","flushing","queens","stairs","purple 7 bullet"]},"geometry":{"type":"Point","coordinates":[100,412]}},
+    {"type":"Feature","properties":{"id":"seven-platform","level":-4,"name":"7 platform","accessible":false,"signs":["7 platform","flushing","queens"]},"geometry":{"type":"Point","coordinates":[100,408]}},
+
+    {
+      "type": "Feature",
+      "properties": {
+        "type": "corridor",
+        "level": 0,
+        "from": "ent-broadway-plaza",
+        "to": "broadway-plaza-elevator",
+        "weight": 2,
+        "length": 20,
+        "instruction": "Walk from the Broadway plaza toward the shuttle connection. Platform access is not verified in this map.",
+        "length_unit": "diagram"
+      },
+      "geometry": { "type": "LineString", "coordinates": [[400, 425], [420, 425]] }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "type": "corridor",
+        "level": -4,
+        "from": "seven-stairs",
+        "to": "seven-platform",
+        "weight": 1,
+        "length": 4,
+        "instruction": "Follow the 7 signs to the platform. Before boarding, check the sign says 7 and Queens or Flushing.",
+        "length_unit": "diagram"
+      },
+      "geometry": { "type": "LineString", "coordinates": [[100, 412], [100, 408]] }
+    },
+
+    {"type":"Feature","properties":{"type":"portal","connector_type":"elevator","from":"ent-43-broadway","to":"nqrw-mezz","level_a":0,"level_b":-1,"weight":2,"equipment_id":"EL619","status":"in_service","instruction":"Take elevator EL619 from the northwest corner of 43rd Street and Broadway to the mezzanine.","reverse_instruction":"Take elevator EL619 from the mezzanine to the northwest corner of 43rd Street and Broadway."},"geometry":{"type":"LineString","coordinates":[[400,430],[400,425]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"elevator","from":"nqrw-mezz","to":"nqrw-uptown","level_a":-1,"level_b":-2,"weight":2,"equipment_id":"EL230","status":"in_service","instruction":"On the mezzanine, take elevator EL230 to the uptown N/Q/R/W platform. Check the platform sign before boarding.","reverse_instruction":"Take elevator EL230 from the uptown N/Q/R/W platform to the mezzanine."},"geometry":{"type":"LineString","coordinates":[[400,425],[400,425]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"stairs","from":"ent-40-7","to":"mez-upper","level_a":0,"level_b":-1,"weight":2,"instruction":"Go down from 40th Street and Seventh Avenue to the mezzanine above the 1/2/3 platforms.","reverse_instruction":"Go up the stairs from the upper mezzanine to 40th Street and Seventh Avenue."},"geometry":{"type":"LineString","coordinates":[[100,400],[100,410]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"walk","from":"ent-40-broadway","to":"mez-upper","level_a":0,"level_b":-1,"weight":3,"instruction":"This door is the N, Q, R, W, and S side. Walk toward Seventh Avenue for the 1, 2, and 3.","reverse_instruction":"From the upper mezzanine, follow the N, Q, R, W, and S signs toward the 40th Street and Broadway entrance."},"geometry":{"type":"LineString","coordinates":[[400,400],[100,410]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"walk","from":"ent-broadway-plaza","to":"mez-upper","level_a":0,"level_b":-1,"weight":2,"instruction":"Walk from the Broadway plaza toward the upper mezzanine and Seventh Avenue.","reverse_instruction":"Walk from the upper mezzanine back toward the Broadway plaza."},"geometry":{"type":"LineString","coordinates":[[400,425],[100,410]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"stairs","from":"ent-42-7","to":"mez-upper","level_a":0,"level_b":-1,"weight":2,"instruction":"Go down the stairs to the upper mezzanine under 42nd Street.","reverse_instruction":"Go up the stairs from the upper mezzanine to the 42nd Street and Seventh Avenue entrance."},"geometry":{"type":"LineString","coordinates":[[100,420],[100,410]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"elevator","from":"ent-42-7","to":"mez-upper","level_a":0,"level_b":-1,"weight":3,"equipment_id":"EL231X","status":"in_service","instruction":"Take elevator EL231X on the southeast corner of 42nd Street and Seventh Avenue to the mezzanine.","reverse_instruction":"Take elevator EL231X from the mezzanine to the southeast corner of 42nd Street and Seventh Avenue."},"geometry":{"type":"LineString","coordinates":[[100,420],[100,410]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"stairs","from":"mez-upper","to":"uptown-123","level_a":-1,"level_b":-2,"weight":2,"instruction":"Use the stairs to the 1/2/3 platforms. Follow the Uptown or Bronx sign.","reverse_instruction":"Go up the stairs from the uptown 1/2/3 platform to the upper mezzanine."},"geometry":{"type":"LineString","coordinates":[[100,410],[90,410]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"stairs","from":"mez-upper","to":"downtown-123","level_a":-1,"level_b":-2,"weight":2,"instruction":"Use the stairs to the 1/2/3 platforms. Follow the Downtown or Brooklyn sign.","reverse_instruction":"Go up the stairs from the downtown 1/2/3 platform to the upper mezzanine."},"geometry":{"type":"LineString","coordinates":[[100,410],[110,410]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"stairs","from":"uptown-123","to":"seven-stairs","level_a":-2,"level_b":-4,"weight":2,"instruction":"Go down the stairs marked 7.","reverse_instruction":"Go up the stairs from the 7-level sign area to the uptown 1/2/3 platform."},"geometry":{"type":"LineString","coordinates":[[90,410],[100,412]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"stairs","from":"downtown-123","to":"seven-stairs","level_a":-2,"level_b":-4,"weight":2,"instruction":"Go down the stairs marked 7.","reverse_instruction":"Go up the stairs from the 7-level sign area to the downtown 1/2/3 platform."},"geometry":{"type":"LineString","coordinates":[[110,410],[100,412]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"stairs","from":"uptown-123","to":"lower-mezzanine","level_a":-2,"level_b":-3,"weight":2,"instruction":"Go down the stairs from the uptown 1/2/3 platform to the lower mezzanine.","reverse_instruction":"Go up the stairs from the lower mezzanine to the uptown 1/2/3 platform."},"geometry":{"type":"LineString","coordinates":[[90,410],[100,410]]}},
+    {"type":"Feature","properties":{"type":"portal","connector_type":"stairs","from":"downtown-123","to":"lower-mezzanine","level_a":-2,"level_b":-3,"weight":2,"instruction":"Go down the stairs from the downtown 1/2/3 platform to the lower mezzanine.","reverse_instruction":"Go up the stairs from the lower mezzanine to the downtown 1/2/3 platform."},"geometry":{"type":"LineString","coordinates":[[110,410],[100,410]]}}
+  ]
+}

@@ -27,6 +27,7 @@ import {
   unrecognizedLocationLine,
 } from "./mockRoutes.js";
 import { readSignText, warmSignReader } from "./ocr.js";
+import Floorplan from "./Floorplan.jsx";
 import "./styles.css";
 
 function Icon({ name }) {
@@ -1266,6 +1267,10 @@ export function App() {
     speakNow(last?.text || OPENING);
   }, [history, speakNow, speaking]);
 
+  if (phase === "diagram") {
+    return <Floorplan onExit={() => setPhase("welcome")} />;
+  }
+
   if (phase === "welcome") {
     return (
       <main className="app">
@@ -1285,6 +1290,11 @@ export function App() {
             <button className="mode-card" onClick={beginDetect}>
               <span className="mode-card__icon"><Icon name="send" /></span>
               <span><strong>Type a destination or landmark</strong><small>Tell me where you're going or what you see</small></span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button className="mode-card" onClick={() => setPhase("diagram")}>
+              <span className="mode-card__icon"><Icon name="map" /></span>
+              <span><strong>View station diagram</strong><small>Schematic floors, not a live location</small></span>
               <span aria-hidden="true">→</span>
             </button>
           </div>

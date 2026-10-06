@@ -38,15 +38,23 @@ Step-free routing excludes stairs and equipment not marked IFIS, and refuses des
 
 The camera stream stays local and video-only; microphone access is requested only by voice input. A separate, explicit camera-analysis action sends one still to the same-origin server and xAI when `XAI_API_KEY` is configured; the server does not store it. Core route selection does not need a remote service. Keep `.env` local and never commit API keys. The inventory request, transcription endpoint, and online vision endpoint are optional; typed offline routing remains available.
 
+## Routing engines
+
+- Text guidance (`shared/guidance.js`) runs the voice and screen loop from `shared/times-square.json`.
+- The schematic viewer (`shared/router.js` and `src/Floorplan.jsx`) draws `shared/times-square-diagram.geojson`. It uses the same edges and weights, and its coordinates are a diagram, not a survey and not a location fix.
+
 ## Code map
 
 | Path | Role |
 | --- | --- |
 | `src/App.jsx` | Phone screen, local route entry, sign-photo selection and confirmation, step confirmation, chat, speech, and optional camera preview |
+| `src/Floorplan.jsx` | Schematic floor switcher. It does not change the voice or journey route. |
 | `src/mockRoutes.js` | Station-alias and rider-described anchor resolution, conservative OCR-text-to-node matching, graph route construction/replanning, route-based answers, and explicit step progression |
 | `src/styles.css` | Phone layout and accessible screen cues |
 | `shared/times-square.json` | Times Square station graph, aliases, entrances, trips, and station-file instructions |
+| `shared/times-square-diagram.geojson` | Schematic floor diagram for the viewer. Coordinates are diagram units, not a survey. |
 | `shared/guidance.js` | Shared pathfinder and station helpers |
+| `shared/router.js` | Multi-floor router for the schematic diagram only |
 | `shared/vision.js` | Station-cue catalog and strict allow-list validation for optional vision suggestions |
 | `shared/self-check.js` | Checks for graph helpers and user-facing route behavior |
 | `server/index.js` | Optional MTA inventory proxy, health, arrivals, transcription, and constrained `/api/vision-cue`. Route wording is not sent to Grok. |

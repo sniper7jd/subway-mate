@@ -8,14 +8,16 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "start": "node server/index.js",
-    "check": "node shared/self-check.js"
+    "check": "node --import ./shared/register-geojson.js shared/self-check.js"
   },
   "dependencies": {
     "busboy": "^1.6.0",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
+    "leaflet": "^1.9.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-leaflet": "^5.0.0",
     "sharp": "^0.35.5",
     "spectrum-ts": "^12.10.1",
     "tesseract.js": "^6.0.1"

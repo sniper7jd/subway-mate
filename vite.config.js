@@ -13,8 +13,21 @@ const customHttps = certificatePath
   ? { cert: readFileSync(certificatePath), key: readFileSync(privateKeyPath) }
   : undefined;
 
+function geojsonModule() {
+  return {
+    name: "geojson-module",
+    enforce: "pre",
+    load(id) {
+      const file = id.split("?")[0];
+      if (!file.endsWith(".geojson")) return null;
+      return `export default ${readFileSync(file, "utf8")}`;
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    geojsonModule(),
     ...(!customHttps ? [basicSsl({ name: "subway-mate", domains: ["localhost"] })] : []),
     react(),
     VitePWA({
